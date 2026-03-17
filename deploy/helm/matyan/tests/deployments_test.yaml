@@ -1,0 +1,388 @@
+suite: Deployment sanity — naming, replica counts, ports, commonAnnotations, imagePullSecrets
+
+templates:
+  - templates/backend-deployment.yaml
+  - templates/frontier-deployment.yaml
+  - templates/ingestion-worker-deployment.yaml
+  - templates/control-worker-deployment.yaml
+  - templates/ui-deployment.yaml
+  - templates/backend-service.yaml
+  - templates/frontier-service.yaml
+  - templates/ui-service.yaml
+
+tests:
+
+# ---------------------------------------------------------------------------
+# Resource naming
+# ---------------------------------------------------------------------------
+
+  - it: backend Deployment name follows <release>-matyan-backend convention
+    values:
+      - fixtures/base.yaml
+    asserts:
+      - equal:
+          path: metadata.name
+          value: "RELEASE-NAME-matyan-backend"
+        template: templates/backend-deployment.yaml
+
+  - it: frontier Deployment is named <release>-matyan-frontier
+    values:
+      - fixtures/base.yaml
+    asserts:
+      - equal:
+          path: metadata.name
+          value: "RELEASE-NAME-matyan-frontier"
+        template: templates/frontier-deployment.yaml
+
+  - it: ingestion-worker Deployment is named <release>-matyan-ingestion-worker
+    values:
+      - fixtures/base.yaml
+    asserts:
+      - equal:
+          path: metadata.name
+          value: "RELEASE-NAME-matyan-ingestion-worker"
+        template: templates/ingestion-worker-deployment.yaml
+
+  - it: control-worker Deployment is named <release>-matyan-control-worker
+    values:
+      - fixtures/base.yaml
+    asserts:
+      - equal:
+          path: metadata.name
+          value: "RELEASE-NAME-matyan-control-worker"
+        template: templates/control-worker-deployment.yaml
+
+  - it: UI Deployment is named <release>-matyan-ui
+    values:
+      - fixtures/base.yaml
+    asserts:
+      - equal:
+          path: metadata.name
+          value: "RELEASE-NAME-matyan-ui"
+        template: templates/ui-deployment.yaml
+
+  - it: fullnameOverride changes the resource name prefix
+    values:
+      - fixtures/base.yaml
+    set:
+      fullnameOverride: "my-app"
+    asserts:
+      - equal:
+          path: metadata.name
+          value: "my-app-backend"
+        template: templates/backend-deployment.yaml
+      - equal:
+          path: metadata.name
+          value: "my-app-ui"
+        template: templates/ui-deployment.yaml
+
+# ---------------------------------------------------------------------------
+# Replica counts
+# ---------------------------------------------------------------------------
+
+  - it: backend defaults to 1 replica
+    values:
+      - fixtures/base.yaml
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 1
+        template: templates/backend-deployment.yaml
+
+  - it: backend.replicaCount is respected
+    values:
+      - fixtures/base.yaml
+    set:
+      backend.replicaCount: 3
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 3
+        template: templates/backend-deployment.yaml
+
+  - it: frontier.replicaCount is respected
+    values:
+      - fixtures/base.yaml
+    set:
+      frontier.replicaCount: 2
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 2
+        template: templates/frontier-deployment.yaml
+
+  - it: ingestionWorker.replicaCount is respected
+    values:
+      - fixtures/base.yaml
+    set:
+      ingestionWorker.replicaCount: 6
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 6
+        template: templates/ingestion-worker-deployment.yaml
+
+# ---------------------------------------------------------------------------
+# UI port consistency — ui.port drives containerPort, MATYAN_UI_PORT, and Service port
+# ---------------------------------------------------------------------------
+
+  - it: UI container port equals ui.port
+    values:
+      - fixtures/base.yaml
+    set:
+      ui.port: 8080
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 8080
+        template: templates/ui-deployment.yaml
+
+  - it: MATYAN_UI_PORT env var equals ui.port
+    values:
+      - fixtures/base.yaml
+    set:
+      ui.port: 8080
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].env[?(@.name=="MATYAN_UI_PORT")].value
+          value: "8080"
+        template: templates/ui-deployment.yaml
+
+  - it: UI Service port equals ui.port
+    values:
+      - fixtures/base.yaml
+    set:
+      ui.port: 8080
+    asserts:
+      - equal:
+          path: spec.ports[0].port
+          value: 8080
+        template: templates/ui-service.yaml
+
+# ---------------------------------------------------------------------------
+# commonAnnotations — applied to all Deployments and Services
+# ---------------------------------------------------------------------------
+
+  - it: commonAnnotations are applied to backend Deployment
+    values:
+      - fixtures/base.yaml
+    set:
+      commonAnnotations:
+        team: "mlops"
+        environment: "production"
+    asserts:
+      - equal:
+          path: metadata.annotations["team"]
+          value: "mlops"
+        template: templates/backend-deployment.yaml
+      - equal:
+          path: metadata.annotations["environment"]
+          value: "production"
+        template: templates/backend-deployment.yaml
+
+  - it: commonAnnotations are applied to frontier Deployment
+    values:
+      - fixtures/base.yaml
+    set:
+      commonAnnotations:
+        team: "mlops"
+    asserts:
+      - equal:
+          path: metadata.annotations["team"]
+          value: "mlops"
+        template: templates/frontier-deployment.yaml
+
+  - it: commonAnnotations are applied to ingestion-worker Deployment
+    values:
+      - fixtures/base.yaml
+    set:
+      commonAnnotations:
+        team: "mlops"
+    asserts:
+      - equal:
+          path: metadata.annotations["team"]
+          value: "mlops"
+        template: templates/ingestion-worker-deployment.yaml
+
+  - it: commonAnnotations are applied to control-worker Deployment
+    values:
+      - fixtures/base.yaml
+    set:
+      commonAnnotations:
+        team: "mlops"
+    asserts:
+      - equal:
+          path: metadata.annotations["team"]
+          value: "mlops"
+        template: templates/control-worker-deployment.yaml
+
+  - it: commonAnnotations are applied to UI Deployment
+    values:
+      - fixtures/base.yaml
+    set:
+      commonAnnotations:
+        team: "mlops"
+    asserts:
+      - equal:
+          path: metadata.annotations["team"]
+          value: "mlops"
+        template: templates/ui-deployment.yaml
+
+  - it: commonAnnotations are applied to backend Service
+    values:
+      - fixtures/base.yaml
+    set:
+      commonAnnotations:
+        team: "mlops"
+    asserts:
+      - equal:
+          path: metadata.annotations["team"]
+          value: "mlops"
+        template: templates/backend-service.yaml
+
+  - it: commonAnnotations are applied to frontier Service
+    values:
+      - fixtures/base.yaml
+    set:
+      commonAnnotations:
+        team: "mlops"
+    asserts:
+      - equal:
+          path: metadata.annotations["team"]
+          value: "mlops"
+        template: templates/frontier-service.yaml
+
+  - it: commonAnnotations are applied to UI Service
+    values:
+      - fixtures/base.yaml
+    set:
+      commonAnnotations:
+        team: "mlops"
+    asserts:
+      - equal:
+          path: metadata.annotations["team"]
+          value: "mlops"
+        template: templates/ui-service.yaml
+
+# ---------------------------------------------------------------------------
+# imagePullSecrets — propagated to all pod specs
+# ---------------------------------------------------------------------------
+
+  - it: imagePullSecrets are propagated to backend pod spec
+    values:
+      - fixtures/base.yaml
+    set:
+      imagePullSecrets:
+        - name: "my-registry-creds"
+    asserts:
+      - contains:
+          path: spec.template.spec.imagePullSecrets
+          content:
+            name: "my-registry-creds"
+        template: templates/backend-deployment.yaml
+
+  - it: imagePullSecrets are propagated to frontier pod spec
+    values:
+      - fixtures/base.yaml
+    set:
+      imagePullSecrets:
+        - name: "my-registry-creds"
+    asserts:
+      - contains:
+          path: spec.template.spec.imagePullSecrets
+          content:
+            name: "my-registry-creds"
+        template: templates/frontier-deployment.yaml
+
+  - it: imagePullSecrets are propagated to ingestion-worker pod spec
+    values:
+      - fixtures/base.yaml
+    set:
+      imagePullSecrets:
+        - name: "my-registry-creds"
+    asserts:
+      - contains:
+          path: spec.template.spec.imagePullSecrets
+          content:
+            name: "my-registry-creds"
+        template: templates/ingestion-worker-deployment.yaml
+
+  - it: imagePullSecrets are propagated to control-worker pod spec
+    values:
+      - fixtures/base.yaml
+    set:
+      imagePullSecrets:
+        - name: "my-registry-creds"
+    asserts:
+      - contains:
+          path: spec.template.spec.imagePullSecrets
+          content:
+            name: "my-registry-creds"
+        template: templates/control-worker-deployment.yaml
+
+  - it: imagePullSecrets are propagated to UI pod spec
+    values:
+      - fixtures/base.yaml
+    set:
+      imagePullSecrets:
+        - name: "my-registry-creds"
+    asserts:
+      - contains:
+          path: spec.template.spec.imagePullSecrets
+          content:
+            name: "my-registry-creds"
+        template: templates/ui-deployment.yaml
+
+# ---------------------------------------------------------------------------
+# Worker commands
+# ---------------------------------------------------------------------------
+
+  - it: ingestion-worker uses the correct default command
+    values:
+      - fixtures/base.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].command[0]
+          value: "matyan-backend"
+        template: templates/ingestion-worker-deployment.yaml
+      - equal:
+          path: spec.template.spec.containers[0].command[1]
+          value: "ingest-worker"
+        template: templates/ingestion-worker-deployment.yaml
+
+  - it: control-worker uses the correct default command
+    values:
+      - fixtures/base.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].command[0]
+          value: "matyan-backend"
+        template: templates/control-worker-deployment.yaml
+      - equal:
+          path: spec.template.spec.containers[0].command[1]
+          value: "control-worker"
+        template: templates/control-worker-deployment.yaml
+
+# ---------------------------------------------------------------------------
+# All five deployments render without error with base values
+# ---------------------------------------------------------------------------
+
+  - it: all deployments are kind Deployment
+    values:
+      - fixtures/base.yaml
+    asserts:
+      - isKind:
+          of: Deployment
+        template: templates/backend-deployment.yaml
+      - isKind:
+          of: Deployment
+        template: templates/frontier-deployment.yaml
+      - isKind:
+          of: Deployment
+        template: templates/ingestion-worker-deployment.yaml
+      - isKind:
+          of: Deployment
+        template: templates/control-worker-deployment.yaml
+      - isKind:
+          of: Deployment
+        template: templates/ui-deployment.yaml

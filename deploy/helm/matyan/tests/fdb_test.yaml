@@ -1,0 +1,377 @@
+suite: FDB helpers — cluster file availability, ConfigMap name, key, env vars, init containers
+
+templates:
+  - templates/backend-deployment.yaml
+  - templates/ingestion-worker-deployment.yaml
+  - templates/control-worker-deployment.yaml
+  - templates/configmap-fdb-cluster.yaml
+
+tests:
+
+# ---------------------------------------------------------------------------
+# fdbHaveClusterFile — controls whether volumes + wait-for-fdb are rendered
+# ---------------------------------------------------------------------------
+
+  - it: no volume mount or wait-for-fdb when no cluster file source is configured
+    values:
+      - fixtures/base.yaml
+    asserts:
+      - isNull:
+          path: spec.template.spec.volumes
+        template: templates/backend-deployment.yaml
+      - notContains:
+          path: spec.template.spec.initContainers
+          content:
+            name: wait-for-fdb
+          any: true
+        template: templates/backend-deployment.yaml
+
+  - it: volume mount is present when fdb-cluster.existingConfigMap is set
+    values:
+      - fixtures/base.yaml
+    set:
+      fdb-cluster.existingConfigMap: "my-fdb-cm"
+    asserts:
+      - isNotNull:
+          path: spec.template.spec.volumes
+        template: templates/backend-deployment.yaml
+      - equal:
+          path: spec.template.spec.volumes[0].configMap.name
+          value: "my-fdb-cm"
+        template: templates/backend-deployment.yaml
+
+  - it: Secret volume is used when fdb-cluster.existingSecret is set
+    values:
+      - fixtures/base.yaml
+    set:
+      fdb-cluster.existingSecret: "my-fdb-secret"
+    asserts:
+      - isNotNull:
+          path: spec.template.spec.volumes
+        template: templates/backend-deployment.yaml
+      - equal:
+          path: spec.template.spec.volumes[0].secret.secretName
+          value: "my-fdb-secret"
+        template: templates/backend-deployment.yaml
+
+  - it: ConfigMap volume is used when fdb-cluster.clusterFileContent is set
+    values:
+      - fixtures/base.yaml
+    set:
+      fdb-cluster.clusterFileContent: "desc:cluster@10.0.0.1:4500"
+    asserts:
+      - isNotNull:
+          path: spec.template.spec.volumes
+        template: templates/backend-deployment.yaml
+      - isNotNull:
+          path: spec.template.spec.volumes[0].configMap
+        template: templates/backend-deployment.yaml
+
+  - it: volume mounts appear in all three deployments when existingConfigMap is set
+    values:
+      - fixtures/base.yaml
+    set:
+      fdb-cluster.existingConfigMap: "my-fdb-cm"
+    asserts:
+      - isNotNull:
+          path: spec.template.spec.volumes
+        template: templates/backend-deployment.yaml
+      - isNotNull:
+          path: spec.template.spec.volumes
+        template: templates/ingestion-worker-deployment.yaml
+      - isNotNull:
+          path: spec.template.spec.volumes
+        template: templates/control-worker-deployment.yaml
+
+# ---------------------------------------------------------------------------
+# ConfigMap name — matyan.fdbConfigMapName
+# ---------------------------------------------------------------------------
+
+  - it: ConfigMap name is <clusterName>-config when operator provides the cluster
+    values:
+      - fixtures/base.yaml
+    set:
+      fdb-operator.install: true
+      fdb-cluster.install: true
+      fdb-cluster.clusterName: "mydb"
+    asserts:
+      - equal:
+          path: spec.template.spec.volumes[0].configMap.name
+          value: "mydb-config"
+        template: templates/backend-deployment.yaml
+
+  - it: ConfigMap name is <release>-config when operator provides cluster and clusterName is empty
+    values:
+      - fixtures/base.yaml
+    set:
+      fdb-operator.install: true
+      fdb-cluster.install: true
+      fdb-cluster.clusterName: ""
+    asserts:
+      - equal:
+          path: spec.template.spec.volumes[0].configMap.name
+          value: "RELEASE-NAME-config"
+        template: templates/backend-deployment.yaml
+
+  - it: ConfigMap name is existingConfigMap value when only existingConfigMap is set
+    values:
+      - fixtures/base.yaml
+    set:
+      fdb-cluster.existingConfigMap: "pre-existing-cm"
+    asserts:
+      - equal:
+          path: spec.template.spec.volumes[0].configMap.name
+          value: "pre-existing-cm"
+        template: templates/backend-deployment.yaml
+
+  - it: ConfigMap name is <fullname>-fdb-cluster when only clusterFileContent is set
+    values:
+      - fixtures/base.yaml
+    set:
+      fdb-cluster.clusterFileContent: "desc:cluster@10.0.0.1:4500"
+    asserts:
+      - equal:
+          path: spec.template.spec.volumes[0].configMap.name
+          value: "RELEASE-NAME-matyan-fdb-cluster"
+        template: templates/backend-deployment.yaml
+
+# ---------------------------------------------------------------------------
+# Cluster file key — matyan.fdbClusterFileKey
+# ---------------------------------------------------------------------------
+
+  - it: cluster file key uses fdb-cluster.operatorConfigMapKey when operator provides cluster
+    values:
+      - fixtures/base.yaml
+    set:
+      fdb-operator.install: true
+      fdb-cluster.install: true
+      fdb-cluster.operatorConfigMapKey: "cluster-file"
+    asserts:
+      - equal:
+          path: spec.template.spec.volumes[0].configMap.items[0].key
+          value: "cluster-file"
+        template: templates/backend-deployment.yaml
+
+  - it: cluster file key uses fdbClient.clusterFileKey when existingConfigMap is set
+    values:
+      - fixtures/base.yaml
+    set:
+      fdb-cluster.existingConfigMap: "my-cm"
+      fdbClient.clusterFileKey: "fdb.cluster"
+    asserts:
+      - equal:
+          path: spec.template.spec.volumes[0].configMap.items[0].key
+          value: "fdb.cluster"
+        template: templates/backend-deployment.yaml
+
+  - it: custom fdbClient.clusterFileKey is respected in volume item projection
+    values:
+      - fixtures/base.yaml
+    set:
+      fdb-cluster.existingConfigMap: "my-cm"
+      fdbClient.clusterFileKey: "my-custom-key"
+    asserts:
+      - equal:
+          path: spec.template.spec.volumes[0].configMap.items[0].key
+          value: "my-custom-key"
+        template: templates/backend-deployment.yaml
+
+  - it: custom fdbClient.clusterFileKey is used when creating ConfigMap from clusterFileContent
+    values:
+      - fixtures/base.yaml
+    set:
+      fdb-cluster.clusterFileContent: "desc:cluster@10.0.0.1:4500"
+      fdbClient.clusterFileKey: "custom.cluster"
+    asserts:
+      - isNotNull:
+          path: data["custom.cluster"]
+        template: templates/configmap-fdb-cluster.yaml
+
+# ---------------------------------------------------------------------------
+# FDB environment variables — FDB_CLUSTER_FILE and FDB_API_VERSION
+# ---------------------------------------------------------------------------
+
+  - it: FDB_CLUSTER_FILE uses default clusterFileDir and clusterFileName
+    values:
+      - fixtures/base.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].env[?(@.name=="FDB_CLUSTER_FILE")].value
+          value: "/etc/foundationdb/fdb.cluster"
+        template: templates/backend-deployment.yaml
+
+  - it: FDB_CLUSTER_FILE uses custom clusterFileDir and clusterFileName
+    values:
+      - fixtures/base.yaml
+    set:
+      fdbClient.clusterFileDir: "/mnt/fdb"
+      fdbClient.clusterFileName: "custom.cluster"
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].env[?(@.name=="FDB_CLUSTER_FILE")].value
+          value: "/mnt/fdb/custom.cluster"
+        template: templates/backend-deployment.yaml
+
+  - it: FDB_API_VERSION defaults to 730
+    values:
+      - fixtures/base.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].env[?(@.name=="FDB_API_VERSION")].value
+          value: "730"
+        template: templates/backend-deployment.yaml
+
+  - it: FDB_API_VERSION can be overridden
+    values:
+      - fixtures/base.yaml
+    set:
+      fdbClient.apiVersion: 700
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].env[?(@.name=="FDB_API_VERSION")].value
+          value: "700"
+        template: templates/backend-deployment.yaml
+
+  - it: FDB_CLUSTER_FILE and FDB_API_VERSION are consistent across all deployments
+    values:
+      - fixtures/base.yaml
+    set:
+      fdbClient.clusterFileDir: "/etc/fdb"
+      fdbClient.clusterFileName: "fdb.cluster"
+      fdbClient.apiVersion: 730
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].env[?(@.name=="FDB_CLUSTER_FILE")].value
+          value: "/etc/fdb/fdb.cluster"
+        template: templates/ingestion-worker-deployment.yaml
+      - equal:
+          path: spec.template.spec.containers[0].env[?(@.name=="FDB_CLUSTER_FILE")].value
+          value: "/etc/fdb/fdb.cluster"
+        template: templates/control-worker-deployment.yaml
+      - equal:
+          path: spec.template.spec.containers[0].env[?(@.name=="FDB_API_VERSION")].value
+          value: "730"
+        template: templates/ingestion-worker-deployment.yaml
+
+# ---------------------------------------------------------------------------
+# wait-for-fdb init container
+# ---------------------------------------------------------------------------
+
+  - it: wait-for-fdb init container is present when existingConfigMap is set and waitForReady enabled
+    values:
+      - fixtures/base.yaml
+    set:
+      fdb-cluster.existingConfigMap: "my-fdb-cm"
+      fdbClient.waitForReady.enabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.initContainers
+          content:
+            name: wait-for-fdb
+          any: true
+        template: templates/backend-deployment.yaml
+
+  - it: wait-for-fdb init container is absent when waitForReady is disabled even if cluster file available
+    values:
+      - fixtures/base.yaml
+    set:
+      fdb-cluster.existingConfigMap: "my-fdb-cm"
+      fdbClient.waitForReady.enabled: false
+    asserts:
+      - notContains:
+          path: spec.template.spec.initContainers
+          content:
+            name: wait-for-fdb
+          any: true
+        template: templates/backend-deployment.yaml
+
+  - it: wait-for-fdb init container is absent when no cluster file source is set even if enabled
+    values:
+      - fixtures/base.yaml
+    set:
+      fdbClient.waitForReady.enabled: true
+    asserts:
+      - notContains:
+          path: spec.template.spec.initContainers
+          content:
+            name: wait-for-fdb
+          any: true
+        template: templates/backend-deployment.yaml
+
+  - it: wait-for-fdb init container uses configured image and timeout
+    values:
+      - fixtures/base.yaml
+    set:
+      fdb-cluster.existingConfigMap: "my-fdb-cm"
+      fdbClient.waitForReady.image.repository: "foundationdb/foundationdb"
+      fdbClient.waitForReady.image.tag: "7.3.69"
+      fdbClient.waitForReady.timeoutSeconds: 600
+    asserts:
+      - contains:
+          path: spec.template.spec.initContainers
+          content:
+            name: wait-for-fdb
+            image: "foundationdb/foundationdb:7.3.69"
+          any: true
+        template: templates/backend-deployment.yaml
+
+  - it: wait-for-fdb appears in ingestion-worker when cluster file is available
+    values:
+      - fixtures/base.yaml
+    set:
+      fdb-cluster.existingConfigMap: "my-fdb-cm"
+    asserts:
+      - contains:
+          path: spec.template.spec.initContainers
+          content:
+            name: wait-for-fdb
+          any: true
+        template: templates/ingestion-worker-deployment.yaml
+
+  - it: wait-for-fdb appears in control-worker when cluster file is available
+    values:
+      - fixtures/base.yaml
+    set:
+      fdb-cluster.existingSecret: "my-fdb-secret"
+    asserts:
+      - contains:
+          path: spec.template.spec.initContainers
+          content:
+            name: wait-for-fdb
+          any: true
+        template: templates/control-worker-deployment.yaml
+
+# ---------------------------------------------------------------------------
+# configmap-fdb-cluster.yaml — created only from clusterFileContent
+# ---------------------------------------------------------------------------
+
+  - it: ConfigMap is not rendered when clusterFileContent is empty
+    values:
+      - fixtures/base.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+        template: templates/configmap-fdb-cluster.yaml
+
+  - it: ConfigMap is not rendered when existingConfigMap is set (no need to create one)
+    values:
+      - fixtures/base.yaml
+    set:
+      fdb-cluster.existingConfigMap: "pre-existing"
+    asserts:
+      - hasDocuments:
+          count: 0
+        template: templates/configmap-fdb-cluster.yaml
+
+  - it: ConfigMap is rendered when clusterFileContent is non-empty and no existingConfigMap/Secret
+    values:
+      - fixtures/base.yaml
+    set:
+      fdb-cluster.clusterFileContent: "desc:cluster@10.0.0.1:4500"
+    asserts:
+      - hasDocuments:
+          count: 1
+        template: templates/configmap-fdb-cluster.yaml
+      - isKind:
+          of: ConfigMap
+        template: templates/configmap-fdb-cluster.yaml

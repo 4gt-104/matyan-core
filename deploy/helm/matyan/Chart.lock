@@ -1,0 +1,12 @@
+dependencies:
+- name: fdb-operator
+  repository: file://charts/fdb-operator
+  version: 0.3.0
+- name: kafka
+  repository: https://charts.bitnami.com/bitnami
+  version: 32.4.3
+- name: rustfs
+  repository: https://charts.rustfs.com
+  version: 0.0.83
+digest: sha256:acd1600298f66bd762acf596f9f4fea02c4156f5c0f2e5b29a43c86e028d6f58
+generated: "2026-03-17T08:28:11.19109821+04:00"

@@ -1,0 +1,67 @@
+# Tests for optional CronJobs (cleanup-orphan-s3, cleanup-tombstones).
+# CronJobs are only rendered when periodicJobs.*.enabled and schedule are set
+# and FDB cluster file is available (fdb-cluster.clusterFileContent or similar).
+
+suite: Periodic jobs CronJobs
+
+templates:
+  - templates/cleanup-orphan-s3-cronjob.yaml
+  - templates/cleanup-tombstones-cronjob.yaml
+
+tests:
+  - it: CronJobs are not rendered when disabled (default)
+    values:
+      - fixtures/base.yaml
+    set:
+      fdb-cluster.clusterFileContent: "test"
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: cleanup-orphan-s3 CronJob is rendered when enabled with FDB
+    values:
+      - fixtures/base.yaml
+    set:
+      fdb-cluster.clusterFileContent: "test"
+      periodicJobs.cleanupOrphanS3.enabled: true
+      periodicJobs.cleanupOrphanS3.schedule: "0 3 * * *"
+    asserts:
+      - isKind:
+          of: CronJob
+        template: templates/cleanup-orphan-s3-cronjob.yaml
+      - equal:
+          path: metadata.name
+          value: "RELEASE-NAME-matyan-cleanup-orphan-s3"
+        template: templates/cleanup-orphan-s3-cronjob.yaml
+      - equal:
+          path: spec.schedule
+          value: "0 3 * * *"
+        template: templates/cleanup-orphan-s3-cronjob.yaml
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.containers[0].command[1]
+          value: "cleanup-orphan-s3"
+        template: templates/cleanup-orphan-s3-cronjob.yaml
+
+  - it: cleanup-tombstones CronJob is rendered when enabled with FDB
+    values:
+      - fixtures/base.yaml
+    set:
+      fdb-cluster.clusterFileContent: "test"
+      periodicJobs.cleanupTombstones.enabled: true
+      periodicJobs.cleanupTombstones.schedule: "0 4 * * 0"
+    asserts:
+      - isKind:
+          of: CronJob
+        template: templates/cleanup-tombstones-cronjob.yaml
+      - equal:
+          path: metadata.name
+          value: "RELEASE-NAME-matyan-cleanup-tombstones"
+        template: templates/cleanup-tombstones-cronjob.yaml
+      - equal:
+          path: spec.schedule
+          value: "0 4 * * 0"
+        template: templates/cleanup-tombstones-cronjob.yaml
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.containers[0].command[1]
+          value: "cleanup-tombstones"
+        template: templates/cleanup-tombstones-cronjob.yaml

@@ -1,0 +1,100 @@
+{{- $fdb := index .Values "fdb-cluster" -}}
+{{- if $fdb.install }}
+apiVersion: apps.foundationdb.org/v1beta2
+kind: FoundationDBCluster
+metadata:
+  name: {{ default .Release.Name $fdb.clusterName }}
+  labels:
+    {{- include "matyan.labels" . | nindent 4 }}
+spec:
+  version: {{ $fdb.clusterVersion | quote }}
+  {{- if or $fdb.configureDatabase (not (eq $fdb.automationOptions.replacementsEnabled nil)) }}
+  automationOptions:
+    {{- if $fdb.configureDatabase }}
+    configureDatabase: true
+    {{- end }}
+    {{- if not (eq $fdb.automationOptions.replacementsEnabled nil) }}
+    replacements:
+      enabled: {{ $fdb.automationOptions.replacementsEnabled }}
+    {{- end }}
+  {{- end }}
+  {{- if or $fdb.databaseConfiguration.redundancyMode $fdb.databaseConfiguration.storageEngine }}
+  databaseConfiguration:
+    {{- if $fdb.databaseConfiguration.redundancyMode }}
+    redundancy_mode: {{ $fdb.databaseConfiguration.redundancyMode | quote }}
+    {{- end }}
+    {{- if $fdb.databaseConfiguration.storageEngine }}
+    storage_engine: {{ $fdb.databaseConfiguration.storageEngine | quote }}
+    {{- end }}
+  {{- end }}
+  {{- if $fdb.faultDomain.key }}
+  faultDomain:
+    key: {{ $fdb.faultDomain.key | quote }}
+  {{- end }}
+  {{- if $fdb.imageType }}
+  imageType: {{ $fdb.imageType | quote }}
+  {{- end }}
+  {{- if or (not (eq $fdb.labels.filterOnOwnerReference nil)) (gt (len $fdb.labels.matchLabels) 0) (gt (len $fdb.labels.processClassLabels) 0) (gt (len $fdb.labels.processGroupIDLabels) 0) }}
+  labels:
+    {{- if not (eq $fdb.labels.filterOnOwnerReference nil) }}
+    filterOnOwnerReference: {{ $fdb.labels.filterOnOwnerReference }}
+    {{- end }}
+    {{- with $fdb.labels.matchLabels }}
+    matchLabels:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+    {{- with $fdb.labels.processClassLabels }}
+    processClassLabels:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+    {{- with $fdb.labels.processGroupIDLabels }}
+    processGroupIDLabels:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+  {{- end }}
+  {{- if not (eq $fdb.minimumUptimeSecondsForBounce nil) }}
+  minimumUptimeSecondsForBounce: {{ $fdb.minimumUptimeSecondsForBounce }}
+  {{- end }}
+  {{- if gt (len $fdb.processCounts) 0 }}
+  processCounts:
+    {{- toYaml $fdb.processCounts | nindent 4 }}
+  {{- end }}
+  {{- $classes := list "general" "storage" "log" "stateless" "cluster_controller" -}}
+  {{- $processesBlock := dict -}}
+  {{- range $cls := $classes -}}
+    {{- if hasKey $fdb.processes $cls -}}
+      {{- $entry := index $fdb.processes $cls -}}
+      {{- if gt (len $entry) 0 -}}
+        {{- $rendered := include "matyan.fdbProcessEntry" $entry | trim -}}
+        {{- if $rendered -}}
+          {{- $_ := set $processesBlock $cls $rendered -}}
+        {{- end -}}
+      {{- end -}}
+    {{- end -}}
+  {{- end -}}
+  {{- if gt (len $processesBlock) 0 }}
+  processes:
+    {{- range $cls := $classes }}
+    {{- if hasKey $processesBlock $cls }}
+    {{ $cls }}:
+      {{- get $processesBlock $cls | nindent 6 }}
+    {{- end }}
+    {{- end }}
+  {{- end }}
+  {{- if not (eq $fdb.routing.defineDNSLocalityFields nil) }}
+  routing:
+    defineDNSLocalityFields: {{ $fdb.routing.defineDNSLocalityFields }}
+  {{- end }}
+  {{- if or (not (eq $fdb.sidecarContainer.enableLivenessProbe nil)) (not (eq $fdb.sidecarContainer.enableReadinessProbe nil)) }}
+  sidecarContainer:
+    {{- if not (eq $fdb.sidecarContainer.enableLivenessProbe nil) }}
+    enableLivenessProbe: {{ $fdb.sidecarContainer.enableLivenessProbe }}
+    {{- end }}
+    {{- if not (eq $fdb.sidecarContainer.enableReadinessProbe nil) }}
+    enableReadinessProbe: {{ $fdb.sidecarContainer.enableReadinessProbe }}
+    {{- end }}
+  {{- end }}
+  {{- if not (eq $fdb.useExplicitListenAddress nil) }}
+  useExplicitListenAddress: {{ $fdb.useExplicitListenAddress }}
+  {{- end }}
+{{- end }}

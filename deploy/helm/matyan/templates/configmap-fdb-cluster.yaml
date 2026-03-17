@@ -1,0 +1,12 @@
+{{- $fdb := index .Values "fdb-cluster" -}}
+{{- if and (not (include "matyan.fdbOperatorProvidesCluster" .)) $fdb.clusterFileContent (not $fdb.existingConfigMap) (not $fdb.existingSecret) }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "matyan.fdbConfigMapName" . }}
+  labels:
+    {{- include "matyan.labels" . | nindent 4 }}
+data:
+  {{ .Values.fdbClient.clusterFileKey }}: |
+{{ $fdb.clusterFileContent | nindent 4 }}
+{{- end }}

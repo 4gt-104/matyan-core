@@ -1,0 +1,23 @@
+---
+description: Run Ruff and ty via uvx (linter and type checker)
+alwaysApply: true
+---
+
+# Ruff and ty — run with uvx
+
+**Ruff** (linter/formatter) and **ty** (type checker) are the project’s lint and type-check tools. They are **not** installed in the project environment; run them with **uvx** so the correct versions are used without adding them as dependencies.
+
+## Commands
+
+- **Lint (Ruff)**  
+  `uvx ruff check .`  
+  Optional: `uvx ruff check . --fix`
+
+- **Format (Ruff)**  
+  `uvx ruff format .`
+
+- **Type check (ty)**  
+  `uvx ty check`  
+  Or from repo root with explicit path: `uvx ty check src/`
+
+When suggesting or running lint/format/type-check, always use these `uvx` invocations. Do not use `ruff` or `ty` (or `mypy`) directly unless they are already in the environment; prefer `uvx ruff` and `uvx ty`.

@@ -1,0 +1,52 @@
+# When docker-compose uses context: extra, this file reduces build context by excluding
+# heavy or unnecessary paths from all sibling projects (matyan-ui, matyan-backend, etc.).
+
+# Version control and IDE
+.git/
+.gitignore
+.vscode/
+.idea/
+.cursor/
+
+# Python
+**/.venv/
+**/venv/
+**/__pycache__/
+**/*.py[cod]
+**/*.pyo
+**/.mypy_cache/
+**/.pytest_cache/
+**/.ruff_cache/
+**/.tox/
+**/.nox/
+**/*.egg-info/
+**/.eggs/
+**/build/
+**/dist/
+**/.coverage
+**/htmlcov/
+**/.pytype/
+**/.pyre/
+
+# Node (matyan-ui and any other frontends)
+**/node_modules/
+**/web/.cache/
+**/web/build/
+**/npm-debug.log*
+**/.npm/
+
+# Docs and meta (not needed for image build)
+**/*.md
+**/LICENSE
+**/NOTICE
+**/MAINTENANCE.md
+**/.env
+**/.env.*
+**/.python-version
+
+# Reference / unused in container build
+aim/
+
+# Optional: uncomment if you never build from extra with local scripts that need these
+# **/scripts/
+# **/tests/

@@ -1,0 +1,998 @@
+# -- Override the name of the chart used in resource names.
+# By default the chart name ("matyan") is used. Setting this changes the prefix
+# for all generated resource names without affecting the Helm release name.
+nameOverride: ""
+
+# -- Override the fully-qualified app name used in resource names.
+# Overrides both the release name and the chart name. Useful when the generated
+# name would exceed Kubernetes' 63-character limit.
+fullnameOverride: ""
+
+# -- List of Kubernetes imagePullSecrets to use for all pod specs in this chart.
+# Each entry must be a map with a "name" key referencing an existing Secret of
+# type kubernetes.io/dockerconfigjson.
+# Example:
+#   imagePullSecrets:
+#     - name: my-registry-credentials
+imagePullSecrets: []
+
+# -- Labels added to every resource created by this chart.
+# Merged with per-resource labels. Useful for cost-allocation tags,
+# team ownership, or environment markers.
+# Example:
+#   commonLabels:
+#     team: mlops
+#     environment: production
+commonLabels: {}
+
+# -- Annotations added to every Deployment, Service, and Ingress resource.
+# Merged with per-resource annotations. Does not apply to Jobs (which carry
+# Helm hook annotations that must not be overridden).
+# Example:
+#   commonAnnotations:
+#     iam.amazonaws.com/role: arn:aws:iam::123456789012:role/matyan
+commonAnnotations: {}
+
+# -- Kafka broker configuration.
+# Controls both the Bitnami Kafka subchart (when install: true) and the
+# shared topic/partition settings consumed by all matyan services.
+# Client connection settings (bootstrap servers, auth) live in kafkaClient below.
+kafka:
+  # -- Deploy the Bitnami Kafka subchart as an in-cluster single-broker.
+  # Set to true for development; use an external cluster (kafkaClient.bootstrapServers)
+  # for production.
+  install: false
+
+  # -- Kafka topic name for high-volume data ingestion messages
+  # (metrics, hparams, blob refs, log lines).
+  # Must match the topic created by kafka-init-job and consumed by ingestion workers.
+  dataIngestionTopic: "data-ingestion"
+
+  # -- Number of partitions for the data-ingestion topic.
+  # Increase to scale ingestion throughput. Each ingestion worker pod handles
+  # one or more partitions (Kafka consumer group rebalancing).
+  dataIngestionPartitions: 6
+
+  # -- Kafka topic name for low-volume control events
+  # (run deleted, experiment renamed, tag removed, etc.).
+  # Consumed by control workers to perform async side effects (S3 cleanup, etc.).
+  controlEventsTopic: "control-events"
+
+  # -- Number of partitions for the control-events topic.
+  # Single partition is sufficient; control events are low-volume and
+  # must be processed in order per operation type.
+  controlEventsPartitions: 1
+
+  # -- Replication factor for both topics.
+  # Must be <= number of broker replicas. Use 1 for single-broker dev setups,
+  # 3 for production clusters.
+  replicationFactor: 1
+
+  # -- Container image for the Kafka broker (subchart).
+  # Passed directly to the Bitnami Kafka subchart.
+  image:
+    # -- OCI registry hosting the Kafka image.
+    registry: docker.io
+    # -- Image repository (without tag). The subchart appends its own tag.
+    repository: bitnamilegacy/kafka
+
+  # -- Listener protocol configuration for the Kafka broker (subchart).
+  # When kafka.install is true, matyan services automatically inherit the
+  # client listener protocol as KAFKA_SECURITY_PROTOCOL (see kafkaClient section).
+  listeners:
+    # -- Protocol for external client connections.
+    # Valid values: PLAINTEXT, SSL, SASL_PLAINTEXT, SASL_SSL.
+    client:
+      protocol: PLAINTEXT
+    # -- Protocol for inter-broker replication traffic.
+    interbroker:
+      protocol: PLAINTEXT
+    # -- Protocol for KRaft controller communications (no ZooKeeper).
+    controller:
+      protocol: PLAINTEXT
+
+  # -- Image used by kafka-init-job to wait for broker readiness and create topics.
+  # Must include the Kafka CLI tools (/opt/bitnami/kafka/bin/kafka-topics.sh).
+  # Should match the broker image version to avoid CLI incompatibilities.
+  initImage:
+    repository: bitnamilegacy/kafka
+    tag: "4.0.0-debian-12-r10"
+    # -- Image pull policy. Use IfNotPresent to avoid unnecessary registry pulls.
+    pullPolicy: IfNotPresent
+
+  # -- Broker authentication settings (subchart passthrough).
+  # Set enabled: true and configure sasl.* to enable SASL on the broker.
+  # When enabled, also configure kafkaClient.securityProtocol and kafkaClient.saslMechanism
+  # so matyan services connect with matching credentials.
+  auth:
+    enabled: false
+
+  # -- Number of Kafka broker replicas (subchart).
+  # For production, use 3+ replicas and set replicationFactor to match.
+  replicaCount: 1
+
+  # -- Init container settings for waiting on Kafka readiness before starting app pods.
+  # Applies to backend, frontier, ingestion-worker, and control-worker deployments.
+  waitForReady:
+    # -- Enable the wait-for-kafka init container on all app deployments.
+    # Disable if Kafka is guaranteed available before app pods start (e.g. external managed cluster).
+    enabled: true
+    # -- Maximum seconds to wait for Kafka before the init container fails.
+    # The init container polls every 3 seconds; pod will not start if this elapses.
+    timeoutSeconds: 300
+    # -- Image used by the wait-for-kafka init container.
+    # Must provide /opt/bitnami/kafka/bin/kafka-topics.sh for the readiness check.
+    image:
+      repository: bitnamilegacy/kafka
+      tag: "4.0.0-debian-12-r10"
+      pullPolicy: IfNotPresent
+
+# -- Client-side connection settings used by all matyan services to reach Kafka.
+# Kept separate from kafka.* (which configures the broker subchart) so the two
+# concerns — "how to run a broker" vs "how to connect to a broker" — do not mix.
+#
+# When kafka.install is true:
+#   - bootstrapServers defaults to the in-cluster service (<release>-kafka:9092)
+#     unless explicitly overridden here.
+#   - securityProtocol and saslMechanism are derived from kafka.listeners.client.protocol
+#     and kafka.sasl.enabledMechanisms respectively; kafkaClient values for those
+#     two fields are only used when kafka.install is false.
+#
+# When kafka.install is false:
+#   - All fields below are used directly.
+kafkaClient:
+  # -- Kafka bootstrap servers address passed as KAFKA_BOOTSTRAP_SERVERS to all services.
+  # Takes priority over the auto-constructed in-cluster address even when kafka.install is true.
+  # Required when kafka.install is false.
+  # Example: "kafka-broker-1:9092,kafka-broker-2:9092"
+  bootstrapServers: ""
+
+  # -- Security protocol for client->broker connections.
+  # Used only when kafka.install is false.
+  # Valid values: PLAINTEXT (default), SSL, SASL_PLAINTEXT, SASL_SSL.
+  # When kafka.install is true, derived from kafka.listeners.client.protocol instead.
+  securityProtocol: ""
+
+  # -- SASL mechanism. Required when securityProtocol is SASL_PLAINTEXT or SASL_SSL.
+  # Used only when kafka.install is false.
+  # Valid values: PLAIN, SCRAM-SHA-256, SCRAM-SHA-512, GSSAPI, OAUTHBEARER.
+  # When kafka.install is true, derived from the first value in kafka.sasl.enabledMechanisms instead.
+  saslMechanism: ""
+
+  # -- SASL username injected as KAFKA_SASL_USERNAME.
+  # Ignored when existingSecret is set. Prefer existingSecret in production.
+  saslUsername: ""
+
+  # -- SASL password injected as KAFKA_SASL_PASSWORD.
+  # Ignored when existingSecret is set. Prefer existingSecret in production.
+  saslPassword: ""
+
+  # -- Name of a preexisting Kubernetes Secret containing SASL credentials.
+  # When set, saslUsername and saslPassword above are ignored.
+  # The Secret must contain the keys named by saslUsernameKey and saslPasswordKey.
+  existingSecret: ""
+
+  # -- Key inside existingSecret that holds the SASL username.
+  saslUsernameKey: "sasl-username"
+
+  # -- Key inside existingSecret that holds the SASL password.
+  saslPasswordKey: "sasl-password"
+
+# -- RustFS subchart configuration (S3-compatible in-cluster object store).
+# RustFS is used as the blob storage backend for large artifacts (images, audio,
+# figures) uploaded via presigned URLs.
+#
+# When rustfs.install is true:
+#   - The RustFS subchart is deployed as an in-cluster S3-compatible store.
+#   - s3.endpoint is automatically set to the in-cluster RustFS service.
+#   - s3.accessKey/secretKey are derived from rustfs.auth.accessKey/secretKey;
+#     the s3.accessKey/secretKey fields are ignored.
+#
+# When rustfs.install is false:
+#   - An external S3-compatible store must be configured via s3.endpoint,
+#     s3.accessKey, and s3.secretKey (or s3.existingSecret).
+rustfs:
+  # -- Deploy the RustFS subchart. Enable for development; use external S3 for production.
+  install: false
+
+  # -- RustFS root credentials.
+  # When rustfs.install is true, these are also used by all matyan services as
+  # the effective S3 access key and secret key (s3.accessKey/secretKey are ignored).
+  auth:
+    # -- Root access key (equivalent to MinIO's MINIO_ROOT_USER).
+    accessKey: "rustfsadmin"
+    # -- Root secret key (equivalent to MinIO's MINIO_ROOT_PASSWORD).
+    secretKey: "rustfsadmin"
+
+  # -- Optional Ingress to expose the RustFS S3 API port (9000) externally.
+  # Required when training clients need to upload blobs directly to S3 via presigned
+  # URLs from outside the cluster. When enabled and hosts is non-empty, s3.publicEndpoint
+  # is auto-derived from the first host entry (https:// if tls is configured, http:// otherwise).
+  s3Ingress:
+    # -- Enable the RustFS S3 Ingress resource.
+    enabled: false
+    # -- Ingress class name (ingressClassName). Leave empty to use the cluster default.
+    className: ""
+    # -- Additional annotations for the S3 Ingress resource (e.g. cert-manager, nginx rewrites).
+    annotations: {}
+    # -- List of host rules for the S3 Ingress.
+    # Example:
+    #   hosts:
+    #     - host: s3.example.com
+    #       paths:
+    #         - path: /
+    #           pathType: Prefix
+    #           port: 9000
+    hosts: []
+    # -- TLS configuration for the S3 Ingress. Presence of any entry causes
+    # s3.publicEndpoint auto-derivation to use https://.
+    # Example:
+    #   tls:
+    #     - hosts:
+    #         - s3.example.com
+    #       secretName: s3-tls
+    tls: []
+
+# -- FoundationDB operator subchart configuration.
+# The FDB operator manages FoundationDBCluster custom resources and handles
+# rolling upgrades, fault recovery, and configuration changes.
+# All keys other than install are passed as-is to the fdb-operator subchart.
+fdb-operator:
+  # -- Deploy the FDB operator subchart.
+  # Set to true only when the operator is not already installed in the cluster.
+  # In production, the operator is typically installed cluster-wide once and shared
+  # across namespaces; set install: false and rely on the existing operator.
+  install: false
+
+# -- FoundationDB cluster configuration (FoundationDBCluster CR spec).
+# Controls the FoundationDBCluster custom resource when install is true.
+# Client-side settings (cluster file mount path, API version, readiness wait)
+# are in the fdbClient section below.
+#
+# Four operating modes:
+#   (1) fdb-operator.install + fdb-cluster.install = true
+#       Deploy the operator subchart AND create a FoundationDBCluster CR.
+#       The operator provisions the cluster and writes the cluster file to a ConfigMap.
+#   (2) fdb-operator.install = true, fdb-cluster.install = false
+#       Deploy the operator only; no cluster CR is created (manage it separately).
+#   (3) fdb-cluster.install = true, fdb-operator.install = false
+#       Create the FoundationDBCluster CR only; the operator must already be present
+#       in the cluster (typical for production where the operator is shared).
+#   (4) Both = false
+#       No operator or CR is created. Supply the cluster file via existingConfigMap,
+#       existingSecret, or clusterFileContent.
+fdb-cluster:
+  # -- Create the FoundationDBCluster custom resource.
+  # Requires the FDB operator to be present (either via fdb-operator.install or pre-installed).
+  install: false
+
+  # -- Name of the FoundationDBCluster CR. Defaults to the Helm release name when empty.
+  clusterName: ""
+
+  # -- FDB server version for the cluster. Must be a version supported by the installed operator.
+  # The waitForReady init container image tag is set independently and should match.
+  clusterVersion: "7.3.69"
+
+  # -- Key inside the operator-managed ConfigMap that holds the cluster file content.
+  # The operator writes the cluster file to a ConfigMap named "<clusterName>-config";
+  # this key selects which entry within that ConfigMap contains the connection string.
+  operatorConfigMapKey: "cluster-file"
+
+  # -- Apply databaseConfiguration to the FoundationDBCluster CR spec.
+  # When false, FDB uses its default redundancy and storage engine settings.
+  configureDatabase: false
+
+  # -- Database configuration applied to the FoundationDBCluster CR when configureDatabase is true.
+  databaseConfiguration:
+    # -- Redundancy mode for FDB data replication.
+    # Valid values: single, double, triple, three_data_hall, three_datacenter.
+    # Use "single" for dev (one storage process), "double" or higher for production.
+    redundancyMode: ""
+    # -- Storage engine used by FDB storage processes.
+    # Valid values: ssd, ssd-1, ssd-2, memory, memory-1, memory-2, redwood-experimental.
+    # Use "memory" for dev (no persistent disk), "ssd" or "ssd-2" for production.
+    storageEngine: ""
+
+  # -- Inline cluster file content.
+  # Use when you want to provide the cluster connection string directly in values
+  # without a preexisting ConfigMap or Secret. A ConfigMap is created from this content.
+  # Example: "DESCRIPTION:CLUSTERNAME@10.0.0.1:4500"
+  clusterFileContent: ""
+
+  # -- Name of an existing ConfigMap containing the FDB cluster file.
+  # The ConfigMap must have a key matching fdbClient.clusterFileKey.
+  # Takes precedence over clusterFileContent.
+  existingConfigMap: ""
+
+  # -- Name of an existing Secret containing the FDB cluster file.
+  # The Secret must have a key matching fdbClient.clusterFileKey.
+  # Takes precedence over existingConfigMap and clusterFileContent.
+  existingSecret: ""
+
+  # -- FoundationDBCluster CR: automationOptions spec field.
+  automationOptions:
+    # -- Allow the operator to replace failed processes automatically.
+    # Set to true for self-healing clusters; null defers to the operator default.
+    replacementsEnabled: null
+
+  # -- FoundationDBCluster CR: faultDomain spec field.
+  faultDomain:
+    # -- Kubernetes node label used to determine fault domain boundaries.
+    # Common values: "kubernetes.io/hostname" (per-node), "foundationdb.org/none" (single zone).
+    # Leave empty to use the operator default.
+    key: ""
+
+  # -- FoundationDBCluster CR: imageType spec field.
+  # Controls whether the operator uses a unified or split image for FDB processes.
+  # Valid values: "unified", "split". Leave empty to use the operator default.
+  imageType: ""
+
+  # -- FoundationDBCluster CR: labels spec field.
+  labels:
+    # -- Whether the operator should filter pods by owner reference.
+    # Set to false in multi-cluster setups where owner references may differ.
+    filterOnOwnerReference: null
+    # -- Additional labels the operator uses to select FDB pods.
+    matchLabels: {}
+    # -- Label keys applied to pods to indicate their FDB process class (storage, log, etc.).
+    processClassLabels: []
+    # -- Label keys applied to pods to indicate their FDB process group ID.
+    processGroupIDLabels: []
+
+  # -- FoundationDBCluster CR: minimumUptimeSecondsForBounce spec field.
+  # Minimum seconds a process must have been running before the operator will
+  # restart it for a configuration change. Null defers to the operator default.
+  minimumUptimeSecondsForBounce: null
+
+  # -- FoundationDBCluster CR: processCounts spec field.
+  # Override the number of FDB processes of each class the operator should run.
+  # Leave empty to let the operator compute counts from redundancyMode.
+  # Example:
+  #   processCounts:
+  #     storage: 3
+  #     log: 3
+  #     stateless: 2
+  #     cluster_controller: 1
+  processCounts: {}
+
+  # -- FoundationDBCluster CR: processes spec field.
+  # Map of process-class entries. The FDB operator merges class-specific entries on top
+  # of "general" (fallback for all unspecified classes). Supported keys:
+  #   general, storage, log, stateless, cluster_controller
+  # Each entry may contain: customParameters, podTemplate, volumeClaimTemplate.
+  processes:
+    # -- Default entry applied to all process classes unless overridden.
+    general:
+      # -- Additional FDB knobs passed to all processes via the command line.
+      # Example: ["knob_disable_posix_kernel_aio=1"]
+      customParameters: []
+      # -- Pod template overrides applied to FDB process pods.
+      podTemplate:
+        # -- Resource and security context overrides for the main FDB container.
+        foundationdb:
+          resources: {}
+          securityContext: {}
+        # -- Resource and security context overrides for the FDB sidecar container.
+        sidecar:
+          resources: {}
+          securityContext: {}
+        # -- Resource and security context overrides for the FDB init container.
+        init:
+          resources: {}
+          securityContext: {}
+      # -- PersistentVolumeClaim template for FDB data volumes.
+      volumeClaimTemplate:
+        # -- StorageClass name for FDB data volumes. Leave empty to use the cluster default.
+        storageClassName: ""
+        # -- Storage size for FDB data volumes (e.g. "16Gi"). Required when storageEngine is ssd.
+        storage: ""
+    # -- Per-class overrides. Empty map = inherit everything from general.
+    # Each accepts the same keys as general: customParameters, podTemplate, volumeClaimTemplate.
+    # podTemplate additionally accepts: nodeSelector, affinity, tolerations, topologySpreadConstraints.
+    storage: {}
+    log: {}
+    stateless: {}
+    cluster_controller: {}
+
+  # -- FoundationDBCluster CR: routing spec field.
+  routing:
+    # -- Add DNS-based locality fields to the cluster file.
+    # Enables pod DNS names in the cluster file for stable addressing across restarts.
+    # Recommended for production. Null defers to the operator default.
+    defineDNSLocalityFields: null
+
+  # -- FoundationDBCluster CR: sidecarContainer spec field.
+  sidecarContainer:
+    # -- Enable the liveness probe on the FDB sidecar container. Null = operator default.
+    enableLivenessProbe: null
+    # -- Enable the readiness probe on the FDB sidecar container. Null = operator default.
+    enableReadinessProbe: null
+
+  # -- FoundationDBCluster CR: useExplicitListenAddress spec field.
+  # When true, FDB processes bind to their pod IP explicitly rather than 0.0.0.0.
+  # Required in some CNI configurations. Null defers to the operator default.
+  useExplicitListenAddress: null
+
+# -- FoundationDB client connection settings used by all matyan services
+# (backend, ingestion workers, control workers).
+# Kept separate from fdb-cluster.* (which configures the FoundationDBCluster CR)
+# so you can use an externally managed FDB cluster without deploying it via this chart.
+#
+# Cluster file resolution order at pod startup:
+#   1. If fdb-operator.install + fdb-cluster.install are both true, the operator writes
+#      the cluster file to a ConfigMap; fdbClient settings control how pods mount/read it.
+#   2. If fdb-cluster.existingConfigMap / existingSecret / clusterFileContent is set,
+#      a ConfigMap is created or referenced and mounted using fdbClient settings.
+#   3. In all cases, FDB_CLUSTER_FILE and FDB_API_VERSION env vars are injected from here.
+fdbClient:
+  # -- Full path to the FDB cluster file as seen inside app pods.
+  # This is the value injected as FDB_CLUSTER_FILE into backend and worker containers.
+  # Constructed from clusterFileDir + "/" + clusterFileName; override only when
+  # the cluster file is at a non-standard path.
+  clusterFilePath: /etc/foundationdb/fdb.cluster
+
+  # -- Directory where the cluster file ConfigMap/Secret volume is mounted inside app pods.
+  clusterFileDir: "/etc/foundationdb"
+
+  # -- Filename of the cluster file within the mount directory.
+  # The volume projection places the file at clusterFileDir/clusterFileName.
+  clusterFileName: "fdb.cluster"
+
+  # -- Key inside the ConfigMap or Secret that holds the cluster file content.
+  # Used in two places:
+  #   - when creating a ConfigMap from fdb-cluster.clusterFileContent (written under this key)
+  #   - when mounting from fdb-cluster.existingConfigMap or fdb-cluster.existingSecret
+  #     (read from this key in the volume projection)
+  clusterFileKey: fdb.cluster
+
+  # -- FDB client API version injected as FDB_API_VERSION into all app pods.
+  # Must not exceed the version supported by the FDB client library binary
+  # (i.e. the version in fdbClient.waitForReady.image.tag). Setting it lower than the
+  # binary version is valid and intentional — it locks the API contract to that version
+  # while allowing library upgrades without code changes.
+  # Example: 730 targets the v7.3 API surface (compatible with any 7.3.x client binary).
+  apiVersion: 730
+
+  # -- Init container that waits for FDB to be reachable before starting app pods.
+  # Uses fdbcli to probe cluster availability; the main container starts only after FDB responds.
+  waitForReady:
+    # -- Enable the wait-for-fdb init container on backend and worker deployments.
+    # Disable only if FDB is guaranteed to be available before pods are scheduled.
+    enabled: true
+    # -- Maximum seconds to wait for FDB before the init container gives up and fails.
+    timeoutSeconds: 300
+    # -- Image used by the wait-for-fdb init container.
+    # Must include fdbcli. Tag should match the FDB server version (fdb-cluster.clusterVersion).
+    image:
+      repository: foundationdb/foundationdb
+      tag: "7.3.69"
+      pullPolicy: IfNotPresent
+
+# -- S3-compatible object storage configuration used for blob artifacts.
+# All matyan services (backend for reads, frontier for presigned URL generation)
+# share this configuration.
+#
+# Credential resolution order:
+#   1. existingSecret (preexisting Kubernetes Secret) — recommended for production.
+#   2. accessKey / secretKey (plaintext in values).
+#   3. If rustfs.install is true, rustfs.auth.accessKey/secretKey are used instead
+#      and accessKey/secretKey here are ignored.
+s3:
+  # -- Internal S3 endpoint used by backend and frontier pods to connect to the object store.
+  # When rustfs.install is true, auto-set to the in-cluster RustFS service; leave empty.
+  # For external S3 (rustfs.install false), set to the full URL including scheme and port,
+  # e.g. "https://s3.amazonaws.com" or "http://minio.example.com:9000".
+  endpoint: ""
+
+  # -- Public S3 endpoint embedded in presigned upload URLs returned to training clients.
+  # Clients upload blobs directly to this URL, so it must be reachable from outside the cluster.
+  # Resolution order:
+  #   1. This field, if non-empty.
+  #   2. Auto-derived from rustfs.s3Ingress.hosts[0] when rustfs.install is true
+  #      and s3Ingress is enabled (https:// if TLS is configured, http:// otherwise).
+  #   3. Falls back to s3.endpoint.
+  publicEndpoint: ""
+
+  # -- S3 bucket name for all blob artifacts.
+  # Created automatically by the s3-init-job on first install when rustfs.install is true.
+  # Must exist before deployment when using an external S3 provider.
+  bucket: "matyan-artifacts"
+
+  # -- Lifetime of presigned S3 upload URLs in seconds.
+  # After this duration the URL expires and clients must request a new one.
+  presignExpiry: 3600
+
+  # -- S3 access key (plaintext). Ignored when existingSecret is set or rustfs.install is true.
+  # Required when rustfs.install is false and existingSecret is not set.
+  accessKey: ""
+
+  # -- S3 secret key (plaintext). Ignored when existingSecret is set or rustfs.install is true.
+  # Required when rustfs.install is false and existingSecret is not set.
+  secretKey: ""
+
+  # -- Name of a preexisting Kubernetes Secret containing S3 credentials.
+  # When set, accessKey and secretKey above are ignored.
+  # The Secret must contain keys named by accessKeyKey and secretKeyKey.
+  existingSecret: ""
+
+  # -- Key inside existingSecret that holds the S3 access key.
+  accessKeyKey: "s3-access-key"
+
+  # -- Key inside existingSecret that holds the S3 secret key.
+  secretKeyKey: "s3-secret-key"
+
+  # -- Image used by the s3-init-job to create the S3 bucket on install/upgrade.
+  # Only runs when rustfs.install is true. Uses the MinIO client (mc) CLI.
+  initImage:
+    repository: minio/mc
+    tag: "RELEASE.2025-08-13T08-35-41Z"
+    pullPolicy: IfNotPresent
+
+# -- Fernet encryption key used by the backend to generate and verify blob URIs.
+# Blob URIs are opaque encrypted tokens embedded in custom object responses;
+# the backend decrypts them to retrieve S3 keys for serving blob content.
+#
+# Credential resolution:
+#   1. existingSecret — recommended for production (key specified by "key" field).
+#   2. value — plaintext key in values.
+#   3. If both are empty, the backend generates an ephemeral key at startup;
+#      this means blob URIs become invalid across pod restarts or replica changes.
+blobUriSecret:
+  # -- Plaintext Fernet key. Must be a URL-safe base64-encoded 32-byte value.
+  # Generate with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+  # Ignored when existingSecret is set.
+  value: ""
+
+  # -- Name of a preexisting Kubernetes Secret containing the Fernet key.
+  existingSecret: ""
+
+  # -- Key inside existingSecret that holds the Fernet key value.
+  key: "blob-uri-secret"
+
+# -- Prometheus metrics and ServiceMonitor configuration.
+# All matyan services expose Prometheus-compatible metrics. This section controls
+# the creation of ServiceMonitor custom resources (requires the Prometheus Operator
+# CRDs to be installed in the cluster).
+metrics:
+  serviceMonitor:
+    # -- Create ServiceMonitor resources for all matyan services.
+    # Requires the Prometheus Operator (or kube-prometheus-stack) to be installed.
+    enabled: false
+
+    # -- Scrape interval. Defaults to the Prometheus global scrape interval when empty.
+    # Example: "15s", "30s", "1m"
+    interval: ""
+
+    # -- Scrape timeout. Must be less than interval. Defaults to Prometheus global when empty.
+    scrapeTimeout: ""
+
+    # -- Additional labels added to every ServiceMonitor resource.
+    # Useful for matching a specific Prometheus instance's serviceMonitorSelector.
+    # Example:
+    #   labels:
+    #     release: kube-prometheus-stack
+    labels: {}
+
+    # -- Namespace where ServiceMonitor resources are created.
+    # Defaults to the release namespace when empty.
+    namespace: ""
+
+    # -- Metric relabeling rules applied to all ServiceMonitors.
+    # Each entry follows the Prometheus relabel_config spec.
+    metricRelabelings: []
+
+    # -- Relabeling rules applied to targets before scraping.
+    relabelings: []
+
+# -- Cross-Origin Resource Sharing configuration for the backend API.
+# The backend only accepts browser requests from listed origins.
+cors:
+  # -- Additional allowed origins beyond ui.hostBase.
+  # ui.hostBase is always appended automatically; list extra origins here
+  # (e.g. local dev URLs, staging environments, or alternative frontend domains).
+  # Example:
+  #   origins:
+  #     - "http://localhost:3000"
+  #     - "https://staging.example.com"
+  origins: []
+
+# -- Backend API deployment configuration.
+# The backend serves all read and control REST API requests from the UI and
+# writes control operations directly to FoundationDB.
+backend:
+  # -- Log level for the backend process (loguru + uvicorn).
+  # Valid values: TRACE, DEBUG, INFO, WARNING, ERROR, CRITICAL.
+  # Set to TRACE to enable per-request timing logs.
+  logLevel: "INFO"
+
+  # -- Required. Public URL at which the backend API is reachable from browsers.
+  # Used as the default value for ui.apiHostBase when it is not explicitly set,
+  # and validated at render time (helm install fails if empty).
+  # Example: "https://api.matyan.example.com"
+  hostBase: ""
+
+  # -- Number of backend pod replicas. The backend is stateless; scale horizontally
+  # as read/write load increases. FoundationDB handles transaction conflicts.
+  replicaCount: 1
+
+  # -- Backend container image.
+  image:
+    repository: docker.io/288888/matyan-backend
+    # -- Image tag. Replace "0" with a concrete version before deploying.
+    tag: 0.2.0
+    pullPolicy: IfNotPresent
+
+  # -- Kubernetes Service configuration for the backend.
+  service:
+    # -- Service type. Use ClusterIP with an Ingress for typical deployments.
+    # NodePort or LoadBalancer can be used to expose the API directly.
+    type: ClusterIP
+    # -- Service port. Must match the port the backend process binds to.
+    port: 53800
+
+  # -- HTTP path used for the Kubernetes readiness probe.
+  # Checks FDB connectivity and Kafka producer state; returns 503 when degraded.
+  readinessPath: /health/ready/
+
+  # -- HTTP path used for the Kubernetes liveness probe.
+  # Lightweight check — returns 200 if the process is running.
+  livenessPath: /health/live/
+
+  # -- Annotations added to the backend Pod template (not the Deployment itself).
+  # Useful for Prometheus scrape annotations, Vault agent injection, etc.
+  podAnnotations: {}
+
+  # -- Labels added to the backend Pod template.
+  podLabels: {}
+
+  # -- CPU and memory resource requests and limits for the backend container.
+  # Example:
+  #   resources:
+  #     requests:
+  #       cpu: "500m"
+  #       memory: "512Mi"
+  #     limits:
+  #       memory: "1Gi"
+  resources: {}
+
+  # -- Additional environment variables injected into the backend container.
+  # Each entry follows the Kubernetes EnvVar spec (name, value or valueFrom).
+  extraEnv: []
+
+  # -- Additional envFrom sources (ConfigMap or Secret refs) for the backend container.
+  extraEnvFrom: []
+
+  # -- Node selector for scheduling backend pods onto specific nodes.
+  nodeSelector: {}
+
+  # -- Tolerations for scheduling backend pods onto tainted nodes.
+  tolerations: []
+
+  # -- Affinity rules for backend pod placement (node affinity, pod anti-affinity, etc.).
+  affinity: {}
+
+# -- Frontier ingestion gateway deployment configuration.
+# The frontier is the client-facing entry point for training data ingestion.
+# It accepts WebSocket connections from matyan-client instances and forwards
+# data to Kafka. It also generates presigned S3 URLs for large blob uploads.
+frontier:
+  # -- Log level for the frontier process (loguru + uvicorn).
+  # Valid values: TRACE, DEBUG, INFO, WARNING, ERROR, CRITICAL.
+  # Set to TRACE to enable per-request timing logs.
+  logLevel: "INFO"
+
+  # -- Number of frontier pod replicas. The frontier is stateless; each WebSocket
+  # connection is self-contained and uses the Kafka producer to forward messages.
+  replicaCount: 1
+
+  # -- Frontier container image.
+  image:
+    repository: docker.io/288888/matyan-frontier
+    # -- Image tag.
+    tag: 0.2.0
+    pullPolicy: IfNotPresent
+
+  # -- Kubernetes Service configuration for the frontier.
+  service:
+    type: ClusterIP
+    # -- Service port. Must match the port the frontier process binds to.
+    port: 53801
+
+  # -- HTTP path used for the Kubernetes readiness probe.
+  # Checks Kafka producer state (and reports S3 reachability); returns 503 when degraded.
+  readinessPath: /health/ready/
+
+  # -- HTTP path used for the Kubernetes liveness probe.
+  # Lightweight check — returns 200 if the process is running.
+  livenessPath: /health/live/
+
+  # -- Annotations added to the frontier Pod template.
+  podAnnotations: {}
+
+  # -- Labels added to the frontier Pod template.
+  podLabels: {}
+
+  # -- CPU and memory resource requests and limits for the frontier container.
+  resources: {}
+
+  # -- Additional environment variables injected into the frontier container.
+  extraEnv: []
+
+  # -- Additional envFrom sources for the frontier container.
+  extraEnvFrom: []
+
+  # -- Node selector for frontier pods.
+  nodeSelector: {}
+
+  # -- Tolerations for frontier pods.
+  tolerations: []
+
+  # -- Affinity rules for frontier pod placement.
+  affinity: {}
+
+# -- Frontend UI deployment configuration.
+# The UI is a React single-page application served by a Python wrapper (matyan-ui).
+# It communicates with the backend REST API; it never talks to the frontier directly.
+ui:
+  # -- Required. Public URL at which the frontend is served.
+  # Automatically appended to cors.origins so the backend allows same-origin requests.
+  # Validated at render time (helm install fails if empty).
+  # Example: "https://matyan.example.com"
+  hostBase: ""
+
+  # -- Number of UI pod replicas.
+  replicaCount: 1
+
+  # -- UI container image.
+  image:
+    repository: docker.io/288888/matyan-ui
+    # -- Image tag.
+    tag: 0.2.0
+    pullPolicy: IfNotPresent
+
+  # -- Kubernetes Service configuration for the UI.
+  service:
+    # -- Service type. The UI port is taken from ui.port (no separate service.port field).
+    type: ClusterIP
+
+  # -- URL path prefix under which the UI app is served.
+  # Set when deploying the UI at a subpath (e.g. "/matyan"). Leave empty for root ("/").
+  basePath: ""
+
+  # -- URL path prefix for backend API requests made by the UI.
+  # Must match the path where the backend API is accessible relative to apiHostBase.
+  apiBasePath: "/api/v1"
+
+  # -- Override the backend URL used by the UI for API calls (MATYAN_UI_API_HOST_BASE).
+  # Defaults to backend.hostBase when empty. Set explicitly when the frontend
+  # and backend are served from different domains or paths.
+  # Example: "https://api.matyan.example.com"
+  apiHostBase: ""
+
+  # -- Static bearer token injected as MATYAN_UI_API_AUTH_TOKEN.
+  # Used to authenticate UI -> backend requests when the backend requires a token.
+  # Prefer apiAuthTokenSecret in production to avoid storing secrets in values.
+  apiAuthToken: ""
+
+  # -- Name of a preexisting Kubernetes Secret containing the API auth token.
+  # When set, apiAuthToken above is ignored.
+  apiAuthTokenSecret: ""
+
+  # -- Key inside apiAuthTokenSecret that holds the token value.
+  apiAuthTokenKey: "api-auth-token"
+
+  # -- Bind address for the UI server process (MATYAN_UI_HOST).
+  # Use "0.0.0.0" to listen on all interfaces (required in a container).
+  host: "0.0.0.0"
+
+  # -- Bind port for the UI server process (MATYAN_UI_PORT).
+  # Also used as the container port and the Kubernetes Service port.
+  port: 8000
+
+  # -- HTTP path for the UI readiness probe.
+  readinessPath: /
+
+  # -- HTTP path for the UI liveness probe.
+  livenessPath: /
+
+  # -- Annotations added to the UI Pod template.
+  podAnnotations: {}
+
+  # -- Labels added to the UI Pod template.
+  podLabels: {}
+
+  # -- CPU and memory resource requests and limits for the UI container.
+  resources: {}
+
+  # -- Additional environment variables injected into the UI container.
+  extraEnv: []
+
+  # -- Additional envFrom sources for the UI container.
+  extraEnvFrom: []
+
+  # -- Node selector for UI pods.
+  nodeSelector: {}
+
+  # -- Tolerations for UI pods.
+  tolerations: []
+
+  # -- Affinity rules for UI pod placement.
+  affinity: {}
+
+# -- Ingestion worker deployment configuration.
+# Ingestion workers are Kafka consumers that read from the data-ingestion topic
+# and write metrics, hparams, blob references, and log lines into FoundationDB.
+# They use the same container image as the backend, started with a different command.
+ingestionWorker:
+  # -- Log level for the ingestion worker process (loguru).
+  # Valid values: TRACE, DEBUG, INFO, WARNING, ERROR, CRITICAL.
+  logLevel: "INFO"
+
+  # -- Number of ingestion worker replicas.
+  # Kafka rebalances partitions across replicas automatically. A good starting point
+  # is one replica per partition (kafka.dataIngestionPartitions).
+  replicaCount: 1
+
+  # -- Container image for the ingestion worker (same image as backend).
+  image:
+    repository: docker.io/288888/matyan-backend
+    # -- Image tag.
+    tag: 0.2.0
+    pullPolicy: IfNotPresent
+
+  # -- Entrypoint command that starts the ingestion worker process.
+  # Do not change unless you have a custom wrapper script.
+  command: ["matyan-backend", "ingest-worker"]
+
+  # -- Port for the Prometheus metrics HTTP server exposed by the ingestion worker.
+  # Set to 0 to disable the metrics server. Prometheus scrapes this port at /metrics.
+  metricsPort: 9090
+
+  # -- Annotations added to the ingestion worker Pod template.
+  podAnnotations: {}
+
+  # -- Labels added to the ingestion worker Pod template.
+  podLabels: {}
+
+  # -- CPU and memory resource requests and limits for the ingestion worker container.
+  resources: {}
+
+  # -- Additional environment variables injected into the ingestion worker container.
+  extraEnv: []
+
+  # -- Additional envFrom sources for the ingestion worker container.
+  extraEnvFrom: []
+
+  # -- Node selector for ingestion worker pods.
+  nodeSelector: {}
+
+  # -- Tolerations for ingestion worker pods.
+  tolerations: []
+
+  # -- Affinity rules for ingestion worker pod placement.
+  affinity: {}
+
+# -- Control worker deployment configuration.
+# Control workers are Kafka consumers that read from the control-events topic
+# and perform async side effects: S3 blob cleanup after run deletion,
+# cascade operations for experiment and tag deletes, etc.
+# They share the same container image as the backend and ingestion workers.
+controlWorker:
+  # -- Log level for the control worker process (loguru).
+  # Valid values: TRACE, DEBUG, INFO, WARNING, ERROR, CRITICAL.
+  logLevel: "INFO"
+
+  # -- Number of control worker replicas.
+  # All replicas join the same Kafka consumer group; Kafka assigns partitions
+  # automatically. Since the control-events topic has a single partition by default,
+  # a single replica is usually sufficient.
+  replicaCount: 1
+
+  # -- Container image for the control worker (same image as backend).
+  image:
+    repository: docker.io/288888/matyan-backend
+    # -- Image tag.
+    tag: 0.2.0
+    pullPolicy: IfNotPresent
+
+  # -- Entrypoint command that starts the control worker process.
+  command: ["matyan-backend", "control-worker"]
+
+  # -- Port for the Prometheus metrics HTTP server exposed by the control worker.
+  # Set to 0 to disable the metrics server. Prometheus scrapes this port at /metrics.
+  metricsPort: 9090
+
+  # -- Annotations added to the control worker Pod template.
+  podAnnotations: {}
+
+  # -- Labels added to the control worker Pod template.
+  podLabels: {}
+
+  # -- CPU and memory resource requests and limits for the control worker container.
+  resources: {}
+
+  # -- Additional environment variables injected into the control worker container.
+  extraEnv: []
+
+  # -- Additional envFrom sources for the control worker container.
+  extraEnvFrom: []
+
+  # -- Node selector for control worker pods.
+  nodeSelector: {}
+
+  # -- Tolerations for control worker pods.
+  tolerations: []
+
+  # -- Affinity rules for control worker pod placement.
+  affinity: {}
+
+# -- Optional CronJobs for periodic maintenance (orphan S3 cleanup, tombstone cleanup).
+# When enabled, each job runs the matyan-backend CLI in a one-off pod on a schedule.
+# Uses the same FDB and S3 configuration as the control worker. Set schedule to empty
+# to disable a CronJob without removing the block (e.g. override in a env-specific values file).
+periodicJobs:
+  # -- Orphan S3 cleanup: delete S3 objects for runs that have a deletion tombstone.
+  cleanupOrphanS3:
+    # -- Create a CronJob that runs cleanup-orphan-s3.
+    enabled: false
+    # -- Cron schedule (e.g. "0 3 * * *" for daily at 03:00). Required when enabled.
+    schedule: "0 3 * * *"
+    # -- FDB lock TTL in seconds; only one instance runs at a time when > 0.
+    lockTtlSeconds: 3600
+    # -- Process at most N run prefixes per run (0 = no limit).
+    limit: 0
+    # -- Image override; when not set uses controlWorker.image.
+    image: {}
+    # -- Successful/failed job history limits.
+    successfulJobsHistoryLimit: 3
+    failedJobsHistoryLimit: 1
+
+  # -- Tombstone cleanup: remove old deletion tombstones from FDB.
+  cleanupTombstones:
+    # -- Create a CronJob that runs cleanup-tombstones.
+    enabled: false
+    # -- Cron schedule (e.g. "0 4 * * 0" for weekly Sunday 04:00). Required when enabled.
+    schedule: "0 4 * * 0"
+    # -- Only clear tombstones older than this many hours (default 168 = 7 days).
+    olderThanHours: 168
+    # -- FDB lock TTL in seconds; only one instance runs at a time when > 0.
+    lockTtlSeconds: 600
+    # -- Image override; when not set uses controlWorker.image.
+    image: {}
+    # -- Successful/failed job history limits.
+    successfulJobsHistoryLimit: 3
+    failedJobsHistoryLimit: 1
+
+# -- Ingress configuration for the UI and backend services.
+# A single Ingress resource is generated with rules derived from ui.hostBase and
+# backend.hostBase. If both resolve to the same hostname, paths are merged into
+# one host rule (/ for UI, /api for backend). If they differ, two separate host
+# rules are created.
+# TLS entries are automatically generated when a hostBase uses https://.
+ingress:
+  # -- Enable the Ingress resource. Requires an ingress controller to be installed
+  # in the cluster (e.g. ingress-nginx, Traefik, AWS ALB controller).
+  enabled: false
+
+  # -- Ingress class name (ingressClassName field on the Ingress resource).
+  # Leave empty to use the cluster default ingress class.
+  # Example: "nginx", "traefik", "alb"
+  className: ""
+
+  # -- Annotations applied to the Ingress resource, merged with commonAnnotations.
+  # Use for controller-specific configuration (TLS termination, rewrite rules, etc.).
+  # Example:
+  #   annotations:
+  #     cert-manager.io/cluster-issuer: letsencrypt-prod
+  #     nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+  annotations: {}
+
+  # -- Override the TLS secret name for the UI hostname.
+  # When empty and ui.hostBase uses https://, a TLS entry is generated without
+  # a secretName, relying on the ingress controller's default certificate.
+  # Set to a specific secret name to use a manually managed or cert-manager certificate.
+  uiTlsSecretName: ""
+
+  # -- Override the TLS secret name for the backend hostname.
+  # Same behaviour as uiTlsSecretName but for backend.hostBase.
+  backendTlsSecretName: ""

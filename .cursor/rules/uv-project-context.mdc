@@ -1,0 +1,15 @@
+---
+description: Project is managed by uv — run commands and sync deps via uv
+alwaysApply: true
+---
+
+# Project tooling: uv
+
+This project is managed by **uv**. Follow these conventions:
+
+- **Run commands and modules** via `uv run`:
+  - Examples: `uv run python script.py`, `uv run pytest`, ...
+- **Sync dependencies** with `uv sync` (not `pip install`).
+- **Add dependencies** with `uv add <package>` so they are recorded in the project and lockfile; then use `uv sync` as needed.
+
+When suggesting or running terminal commands in this repo, use `uv run` for any Python/CLI tool invocation and `uv sync` for dependency installation/sync.

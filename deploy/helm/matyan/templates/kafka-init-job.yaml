@@ -1,0 +1,48 @@
+{{- if .Values.kafka.install }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "matyan.fullname" . }}-kafka-init
+  labels:
+    {{- include "matyan.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        {{- include "matyan.labels" . | nindent 8 }}
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: kafka-init
+          image: "{{ .Values.kafka.initImage.repository }}:{{ .Values.kafka.initImage.tag }}"
+          imagePullPolicy: {{ .Values.kafka.initImage.pullPolicy }}
+          command:
+            - /bin/sh
+            - -c
+          args:
+            - |
+              set -e
+              BOOTSTRAP="{{ include "matyan.kafkaBootstrapServers" . }}"
+              READY=0
+              for i in $(seq 1 30); do
+                if /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server "${BOOTSTRAP}" --list >/dev/null 2>&1; then
+                  READY=1
+                  break
+                fi
+                echo "Waiting for Kafka... ($i/30)"
+                sleep 2
+              done
+              [ "$READY" -eq 1 ] || { echo "Timeout: Kafka not ready at ${BOOTSTRAP}"; exit 1; }
+              /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server "${BOOTSTRAP}" --create --if-not-exists \
+                --topic {{ .Values.kafka.dataIngestionTopic | quote }} \
+                --partitions {{ .Values.kafka.dataIngestionPartitions }} \
+                --replication-factor {{ .Values.kafka.replicationFactor }}
+              /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server "${BOOTSTRAP}" --create --if-not-exists \
+                --topic {{ .Values.kafka.controlEventsTopic | quote }} \
+                --partitions {{ .Values.kafka.controlEventsPartitions }} \
+                --replication-factor {{ .Values.kafka.replicationFactor }}
+{{- end }}

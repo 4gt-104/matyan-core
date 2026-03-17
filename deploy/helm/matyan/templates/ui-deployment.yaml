@@ -1,0 +1,92 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "matyan.fullname" . }}-ui
+  labels:
+    {{- include "matyan.labels" . | nindent 4 }}
+    app.kubernetes.io/component: ui
+  {{- with .Values.commonAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  replicas: {{ .Values.ui.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "matyan.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: ui
+  template:
+    metadata:
+      labels:
+        {{- include "matyan.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: ui
+        {{- with .Values.ui.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.ui.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: ui
+          image: "{{ .Values.ui.image.repository }}:{{ .Values.ui.image.tag }}"
+          imagePullPolicy: {{ .Values.ui.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.ui.port }}
+              protocol: TCP
+          env:
+            - name: MATYAN_UI_BASE_PATH
+              value: {{ .Values.ui.basePath | quote }}
+            - name: MATYAN_UI_API_BASE_PATH
+              value: {{ .Values.ui.apiBasePath | quote }}
+            - name: MATYAN_UI_API_HOST_BASE
+              value: {{ include "matyan.uiApiHostBase" . | quote }}
+            {{- if .Values.ui.apiAuthTokenSecret }}
+            - name: MATYAN_UI_API_AUTH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.ui.apiAuthTokenSecret }}
+                  key: {{ .Values.ui.apiAuthTokenKey }}
+            {{- else if .Values.ui.apiAuthToken }}
+            - name: MATYAN_UI_API_AUTH_TOKEN
+              value: {{ .Values.ui.apiAuthToken | quote }}
+            {{- end }}
+            - name: MATYAN_UI_HOST
+              value: {{ .Values.ui.host | quote }}
+            - name: MATYAN_UI_PORT
+              value: {{ .Values.ui.port | quote }}
+            {{- with .Values.ui.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with .Values.ui.extraEnvFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.ui.readinessPath | quote }}
+              port: http
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.ui.livenessPath | quote }}
+              port: http
+          resources:
+            {{- toYaml .Values.ui.resources | nindent 12 }}
+      {{- with .Values.ui.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.ui.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.ui.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

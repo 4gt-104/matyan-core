@@ -1,0 +1,99 @@
+{{- if .Values.ingress.enabled }}
+{{- $uiHost := include "matyan.hostname" .Values.ui.hostBase }}
+{{- $backendHost := include "matyan.hostname" .Values.backend.hostBase }}
+{{- $sameHost := eq $uiHost $backendHost }}
+{{- $uiHttps := hasPrefix "https://" .Values.ui.hostBase }}
+{{- $backendHttps := hasPrefix "https://" .Values.backend.hostBase }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "matyan.fullname" . }}
+  labels:
+    {{- include "matyan.labels" . | nindent 4 }}
+  {{- $annotations := merge (.Values.ingress.annotations | default dict) (.Values.commonAnnotations | default dict) }}
+  {{- with $annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- if .Values.ingress.className }}
+  ingressClassName: {{ .Values.ingress.className }}
+  {{- end }}
+  rules:
+    - host: {{ $uiHost | quote }}
+      http:
+        paths:
+          - path: "/"
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "matyan.fullname" . }}-ui
+                port:
+                  number: {{ .Values.ui.port }}
+          {{- if $sameHost }}
+          - path: "/api"
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "matyan.fullname" . }}-backend
+                port:
+                  number: {{ .Values.backend.service.port }}
+          - path: "/api/v1/rest/artifacts"
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "matyan.fullname" . }}-frontier
+                port:
+                  number: {{ .Values.frontier.service.port }}
+          - path: "/api/v1/ws"
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "matyan.fullname" . }}-frontier
+                port:
+                  number: {{ .Values.frontier.service.port }}
+          {{- end }}
+    {{- if not $sameHost }}
+    - host: {{ $backendHost | quote }}
+      http:
+        paths:
+          - path: "/api"
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "matyan.fullname" . }}-backend
+                port:
+                  number: {{ .Values.backend.service.port }}
+          - path: "/api/v1/rest/artifacts"
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "matyan.fullname" . }}-frontier
+                port:
+                  number: {{ .Values.frontier.service.port }}
+          - path: "/api/v1/ws"
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "matyan.fullname" . }}-frontier
+                port:
+                  number: {{ .Values.frontier.service.port }}
+    {{- end }}
+  {{- if or $uiHttps (and (not $sameHost) $backendHttps) }}
+  tls:
+    {{- if $uiHttps }}
+    - hosts:
+        - {{ $uiHost }}
+      {{- if .Values.ingress.uiTlsSecretName }}
+      secretName: {{ .Values.ingress.uiTlsSecretName | quote }}
+      {{- end }}
+    {{- end }}
+    {{- if and (not $sameHost) $backendHttps }}
+    - hosts:
+        - {{ $backendHost }}
+      {{- if .Values.ingress.backendTlsSecretName }}
+      secretName: {{ .Values.ingress.backendTlsSecretName | quote }}
+      {{- end }}
+    {{- end }}
+  {{- end }}
+{{- end }}

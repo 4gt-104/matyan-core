@@ -1,0 +1,35 @@
+{{- if .Values.rustfs.s3Ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "matyan.fullname" . }}-s3
+  labels:
+    {{- include "matyan.labels" . | nindent 4 }}
+  {{- with .Values.rustfs.s3Ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- if .Values.rustfs.s3Ingress.className }}
+  ingressClassName: {{ .Values.rustfs.s3Ingress.className }}
+  {{- end }}
+  rules:
+    {{- range .Values.rustfs.s3Ingress.hosts }}
+    - host: {{ .host | quote }}
+      http:
+        paths:
+          {{- range .paths }}
+          - path: {{ .path | quote }}
+            pathType: {{ .pathType }}
+            backend:
+              service:
+                name: {{ printf "%s-rustfs-svc" $.Release.Name }}
+                port:
+                  number: {{ .port }}
+          {{- end }}
+    {{- end }}
+  {{- with .Values.rustfs.s3Ingress.tls }}
+  tls:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- end }}

@@ -1,0 +1,18 @@
+---
+description: Code style preferences and linter rules for the Matyan codebase
+alwaysApply: true
+---
+
+# Code Style
+
+## Ruff Warnings to Ignore
+
+When reviewing linter output, **do not attempt to fix** the following categories of ruff warnings:
+
+- **Import sorting** (`I001`, `I002`) — import order is not enforced
+- **Unused imports** (`F401`) — imports may be re-exported or used implicitly
+
+## `Any` Type Annotations (`ANN401`)
+
+- Avoid `Any` whenever a more specific type is possible.
+- When `Any` is genuinely unavoidable (e.g., generic serialization boundaries, FDB transaction arguments whose type is opaque), add `# noqa: ANN401` on the offending line to suppress the warning.

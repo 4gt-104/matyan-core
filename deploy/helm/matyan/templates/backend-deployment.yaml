@@ -1,0 +1,238 @@
+{{- $fdb := index .Values "fdb-cluster" -}}
+{{- $fdbClient := .Values.fdbClient -}}
+{{- $clusterFileDir := default (dir $fdbClient.clusterFilePath) $fdbClient.clusterFileDir -}}
+{{- $clusterFileName := default (base $fdbClient.clusterFilePath) $fdbClient.clusterFileName -}}
+{{- $clusterFilePath := printf "%s/%s" $clusterFileDir $clusterFileName -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "matyan.fullname" . }}-backend
+  labels:
+    {{- include "matyan.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backend
+  {{- with .Values.commonAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  replicas: {{ .Values.backend.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "matyan.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: backend
+  template:
+    metadata:
+      labels:
+        {{- include "matyan.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: backend
+        {{- with .Values.backend.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.backend.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{ if or (and $fdbClient.waitForReady.enabled (include "matyan.fdbHaveClusterFile" .)) .Values.kafka.waitForReady.enabled }}
+      initContainers:
+        {{ if and $fdbClient.waitForReady.enabled (include "matyan.fdbHaveClusterFile" .) }}
+        - name: wait-for-fdb
+          image: "{{ $fdbClient.waitForReady.image.repository }}:{{ $fdbClient.waitForReady.image.tag }}"
+          imagePullPolicy: {{ $fdbClient.waitForReady.image.pullPolicy }}
+          command:
+            - /bin/sh
+            - -c
+          args:
+            - |
+              set -e
+              CLUSTER_FILE="{{ $clusterFilePath }}"
+              TIMEOUT={{ $fdbClient.waitForReady.timeoutSeconds }}
+              START=$(date +%s)
+              while [ ! -s "${CLUSTER_FILE}" ]; do
+                now=$(date +%s)
+                if [ $((now - START)) -ge "${TIMEOUT}" ]; then
+                  echo "Timeout waiting for FDB cluster file at ${CLUSTER_FILE}"
+                  exit 1
+                fi
+                echo "Waiting for FDB cluster file... (${CLUSTER_FILE} is not available yet)"
+                sleep 2
+              done
+              if command -v fdbcli >/dev/null 2>&1; then
+                until fdbcli -C "${CLUSTER_FILE}" --exec "status" >/dev/null 2>&1; do
+                  now=$(date +%s)
+                  if [ $((now - START)) -ge "${TIMEOUT}" ]; then
+                    echo "Timeout waiting for FDB status"
+                    exit 1
+                  fi
+                  echo "Waiting for FDB to be ready..."
+                  sleep 3
+                done
+              fi
+          volumeMounts:
+            - name: fdb-cluster
+              mountPath: {{ $clusterFileDir | quote }}
+              readOnly: true
+        {{ end }}
+        {{ if .Values.kafka.waitForReady.enabled }}
+        - name: wait-for-kafka
+          image: "{{ .Values.kafka.waitForReady.image.repository }}:{{ .Values.kafka.waitForReady.image.tag }}"
+          imagePullPolicy: {{ .Values.kafka.waitForReady.image.pullPolicy }}
+          command:
+            - /bin/sh
+            - -c
+          args:
+            - |
+              set -e
+              BOOTSTRAP="{{ include "matyan.kafkaBootstrapServers" . }}"
+              TIMEOUT={{ .Values.kafka.waitForReady.timeoutSeconds }}
+              START=$(date +%s)
+              until /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server "${BOOTSTRAP}" --list >/dev/null 2>&1; do
+                now=$(date +%s)
+                if [ $((now - START)) -ge "${TIMEOUT}" ]; then
+                  echo "Timeout waiting for Kafka at ${BOOTSTRAP}"
+                  exit 1
+                fi
+                echo "Waiting for Kafka to be ready... (${BOOTSTRAP} is not available yet)"
+                sleep 3
+              done
+        {{ end }}
+      {{ end }}
+      containers:
+        - name: backend
+          image: "{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag }}"
+          imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.backend.service.port }}
+              protocol: TCP
+          env:
+            - name: LOG_LEVEL
+              value: {{ .Values.backend.logLevel | quote }}
+            - name: FDB_CLUSTER_FILE
+              value: {{ $clusterFilePath | quote }}
+            - name: FDB_API_VERSION
+              value: {{ $fdbClient.apiVersion | quote }}
+            - name: S3_ENDPOINT
+              value: {{ include "matyan.s3Endpoint" . | quote }}
+            - name: S3_BUCKET
+              value: {{ .Values.s3.bucket | quote }}
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              value: {{ include "matyan.kafkaBootstrapServers" . | quote }}
+            - name: KAFKA_DATA_INGESTION_TOPIC
+              value: {{ .Values.kafka.dataIngestionTopic | quote }}
+            - name: KAFKA_CONTROL_EVENTS_TOPIC
+              value: {{ .Values.kafka.controlEventsTopic | quote }}
+            {{- with include "matyan.kafkaSecurityProtocol" . }}
+            - name: KAFKA_SECURITY_PROTOCOL
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with include "matyan.kafkaSaslMechanism" . }}
+            - name: KAFKA_SASL_MECHANISM
+              value: {{ . | quote }}
+            {{- end }}
+            {{- if .Values.kafkaClient.existingSecret }}
+            - name: KAFKA_SASL_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.kafkaClient.existingSecret }}
+                  key: {{ .Values.kafkaClient.saslUsernameKey }}
+            - name: KAFKA_SASL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.kafkaClient.existingSecret }}
+                  key: {{ .Values.kafkaClient.saslPasswordKey }}
+            {{- else }}
+            {{- if .Values.kafkaClient.saslUsername }}
+            - name: KAFKA_SASL_USERNAME
+              value: {{ .Values.kafkaClient.saslUsername | quote }}
+            {{- end }}
+            {{- if .Values.kafkaClient.saslPassword }}
+            - name: KAFKA_SASL_PASSWORD
+              value: {{ .Values.kafkaClient.saslPassword | quote }}
+            {{- end }}
+            {{- end }}
+            - name: CORS_ORIGINS
+              value: {{ include "matyan.corsOrigins" . | quote }}
+            {{- if .Values.blobUriSecret.existingSecret }}
+            - name: BLOB_URI_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.blobUriSecret.existingSecret }}
+                  key: {{ .Values.blobUriSecret.key }}
+            {{- else if .Values.blobUriSecret.value }}
+            - name: BLOB_URI_SECRET
+              value: {{ .Values.blobUriSecret.value | quote }}
+            {{- end }}
+            {{- if .Values.s3.existingSecret }}
+            - name: S3_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.s3.existingSecret }}
+                  key: {{ .Values.s3.accessKeyKey | default "s3-access-key" }}
+            - name: S3_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.s3.existingSecret }}
+                  key: {{ .Values.s3.secretKeyKey | default "s3-secret-key" }}
+            {{- else }}
+            - name: S3_ACCESS_KEY
+              value: {{ include "matyan.s3AccessKey" . | quote }}
+            - name: S3_SECRET_KEY
+              value: {{ include "matyan.s3SecretKey" . | quote }}
+            {{- end }}
+            {{- with .Values.backend.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with .Values.backend.extraEnvFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{ if include "matyan.fdbHaveClusterFile" . }}
+          volumeMounts:
+            - name: fdb-cluster
+              mountPath: {{ $clusterFileDir | quote }}
+              readOnly: true
+          {{ end }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.backend.readinessPath | quote }}
+              port: http
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.backend.livenessPath | quote }}
+              port: http
+          resources:
+            {{- toYaml .Values.backend.resources | nindent 12 }}
+      {{ if include "matyan.fdbHaveClusterFile" . }}
+      volumes:
+        - name: fdb-cluster
+          {{ if $fdb.existingSecret }}
+          secret:
+            secretName: {{ $fdb.existingSecret }}
+            items:
+              - key: {{ include "matyan.fdbClusterFileKey" . }}
+                path: {{ $clusterFileName }}
+          {{ else }}
+          configMap:
+            name: {{ include "matyan.fdbConfigMapName" . }}
+            items:
+              - key: {{ include "matyan.fdbClusterFileKey" . }}
+                path: {{ $clusterFileName }}
+          {{ end }}
+      {{ end }}
+      {{- with .Values.backend.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.backend.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.backend.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

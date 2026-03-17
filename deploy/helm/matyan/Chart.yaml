@@ -1,0 +1,22 @@
+apiVersion: v2
+name: matyan
+description: Matyan application services chart
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+dependencies:
+  - name: fdb-operator
+    version: "0.3.0"
+    repository: "file://charts/fdb-operator"
+    condition: fdb-operator.install
+    alias: fdb-operator
+  - name: kafka
+    version: "32.4.3"
+    repository: "https://charts.bitnami.com/bitnami"
+    condition: kafka.install
+    alias: kafka
+  - name: rustfs
+    version: "0.0.83"
+    repository: "https://charts.rustfs.com"
+    condition: rustfs.install
+    alias: rustfs

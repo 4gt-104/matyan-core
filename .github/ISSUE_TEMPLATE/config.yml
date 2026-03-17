@@ -1,0 +1,9 @@
+---
+blank_issues_enabled: true
+contact_links:
+  - name: Documentation
+    url: https://4gt-104.github.io/matyan-core/
+    about: Read the docs for setup, usage, and API reference.
+  - name: Discussions
+    url: https://github.com/4gt-104/matyan-core/discussions
+    about: Ask questions and share ideas with the community.

@@ -1,0 +1,24 @@
+{{- if .Values.controlWorker.metricsPort }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "matyan.fullname" . }}-control-worker
+  labels:
+    {{- include "matyan.labels" . | nindent 4 }}
+    app.kubernetes.io/component: control-worker
+  {{- with .Values.commonAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: ClusterIP
+  clusterIP: None
+  ports:
+    - name: metrics
+      port: {{ .Values.controlWorker.metricsPort }}
+      targetPort: metrics
+      protocol: TCP
+  selector:
+    {{- include "matyan.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: control-worker
+{{- end }}

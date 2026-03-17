@@ -1,0 +1,241 @@
+{
+  "title": "Matyan observability",
+  "uid": "matyan-observability",
+  "schemaVersion": 38,
+  "version": 0,
+  "time": { "from": "now-6h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "type": "row",
+      "title": "Backend API",
+      "gridPos": { "x": 0, "y": 0, "w": 24, "h": 1 }
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "HTTP request rate",
+      "gridPos": { "x": 0, "y": 1, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "sum(rate(matyan_http_requests_total[5m])) by (method, path_template, status_class)",
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "prometheus" }
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "HTTP request latency (p50, p95, p99)",
+      "gridPos": { "x": 12, "y": 1, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum(rate(matyan_http_request_duration_seconds_bucket[5m])) by (le, path_template))",
+          "legendFormat": "p50 {{path_template}}",
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "prometheus" }
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(matyan_http_request_duration_seconds_bucket[5m])) by (le, path_template))",
+          "legendFormat": "p95 {{path_template}}",
+          "refId": "B",
+          "datasource": { "type": "prometheus", "uid": "prometheus" }
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(matyan_http_request_duration_seconds_bucket[5m])) by (le, path_template))",
+          "legendFormat": "p99 {{path_template}}",
+          "refId": "C",
+          "datasource": { "type": "prometheus", "uid": "prometheus" }
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "row",
+      "title": "Frontier",
+      "gridPos": { "x": 0, "y": 9, "w": 24, "h": 1 }
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Frontier HTTP request rate",
+      "gridPos": { "x": 0, "y": 10, "w": 8, "h": 6 },
+      "targets": [
+        {
+          "expr": "sum(rate(matyan_http_requests_total[5m])) by (method, path_template, status_class)",
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "prometheus" }
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "WebSocket connections (active)",
+      "gridPos": { "x": 8, "y": 10, "w": 4, "h": 6 },
+      "targets": [
+        {
+          "expr": "matyan_ws_connections_active",
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "prometheus" }
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "WebSocket messages rate by type",
+      "gridPos": { "x": 12, "y": 10, "w": 12, "h": 6 },
+      "targets": [
+        {
+          "expr": "sum(rate(matyan_ws_messages_total[5m])) by (message_type)",
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "prometheus" }
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "WebSocket connection duration (p95)",
+      "gridPos": { "x": 0, "y": 16, "w": 12, "h": 6 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(matyan_ws_connection_duration_seconds_bucket[5m])) by (le))",
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "prometheus" }
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "type": "row",
+      "title": "Ingestion worker",
+      "gridPos": { "x": 0, "y": 22, "w": 24, "h": 1 }
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "Messages consumed rate",
+      "gridPos": { "x": 0, "y": 23, "w": 6, "h": 6 },
+      "targets": [
+        {
+          "expr": "rate(matyan_ingestion_messages_consumed_total[5m])",
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "prometheus" }
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "Messages processed by type",
+      "gridPos": { "x": 6, "y": 23, "w": 6, "h": 6 },
+      "targets": [
+        {
+          "expr": "sum(rate(matyan_ingestion_messages_processed_total[5m])) by (message_type)",
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "prometheus" }
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "type": "timeseries",
+      "title": "Ingestion processing errors by type",
+      "gridPos": { "x": 12, "y": 23, "w": 6, "h": 6 },
+      "targets": [
+        {
+          "expr": "sum(rate(matyan_ingestion_processing_errors_total[5m])) by (error_type)",
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "prometheus" }
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "type": "stat",
+      "title": "Ingestion batch size (p95)",
+      "gridPos": { "x": 0, "y": 29, "w": 6, "h": 6 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(matyan_ingestion_batch_size_bucket[5m])) by (le))",
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "prometheus" }
+        }
+      ]
+    },
+    {
+      "id": 14,
+      "type": "timeseries",
+      "title": "Ingestion batch processing duration (p95)",
+      "gridPos": { "x": 6, "y": 29, "w": 12, "h": 6 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(matyan_ingestion_batch_processing_seconds_bucket[5m])) by (le))",
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "prometheus" }
+        }
+      ]
+    },
+    {
+      "id": 15,
+      "type": "row",
+      "title": "Control worker",
+      "gridPos": { "x": 0, "y": 35, "w": 24, "h": 1 }
+    },
+    {
+      "id": 16,
+      "type": "timeseries",
+      "title": "Control events consumed rate",
+      "gridPos": { "x": 0, "y": 36, "w": 6, "h": 6 },
+      "targets": [
+        {
+          "expr": "rate(matyan_control_events_consumed_total[5m])",
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "prometheus" }
+        }
+      ]
+    },
+    {
+      "id": 17,
+      "type": "timeseries",
+      "title": "Control events processed by type",
+      "gridPos": { "x": 6, "y": 36, "w": 6, "h": 6 },
+      "targets": [
+        {
+          "expr": "sum(rate(matyan_control_events_processed_total[5m])) by (event_type)",
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "prometheus" }
+        }
+      ]
+    },
+    {
+      "id": 18,
+      "type": "timeseries",
+      "title": "Control processing errors by type",
+      "gridPos": { "x": 12, "y": 36, "w": 6, "h": 6 },
+      "targets": [
+        {
+          "expr": "sum(rate(matyan_control_processing_errors_total[5m])) by (error_type)",
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "prometheus" }
+        }
+      ]
+    },
+    {
+      "id": 19,
+      "type": "timeseries",
+      "title": "Control event processing duration (p95)",
+      "gridPos": { "x": 0, "y": 42, "w": 12, "h": 6 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(matyan_control_processing_duration_seconds_bucket[5m])) by (le))",
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "prometheus" }
+        }
+      ]
+    }
+  ]
+}

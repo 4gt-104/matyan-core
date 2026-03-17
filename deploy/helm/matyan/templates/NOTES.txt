@@ -1,0 +1,26 @@
+{{- if not .Values.ui.hostBase }}{{ fail "ui.hostBase is required (public URL of the frontend, e.g. \"https://matyan.example.com\")" }}{{ end -}}
+{{- if not .Values.backend.hostBase }}{{ fail "backend.hostBase is required (public URL of the backend API, e.g. \"https://matyan.example.com\")" }}{{ end -}}
+Matyan has been deployed.
+
+Configuration reminders:
+
+1) FoundationDB cluster file
+   - Provide a cluster file using one of:
+     - values: fdb-cluster.clusterFileContent (creates a ConfigMap)
+     - values: fdb-cluster.existingConfigMap
+     - values: fdb-cluster.existingSecret
+   - The file is mounted at: {{ .Values.fdbClient.clusterFilePath }}
+
+2) Kafka topics
+   - Ensure the following topics exist:
+     - {{ .Values.kafka.dataIngestionTopic }}
+     - {{ .Values.kafka.controlEventsTopic }}
+
+3) S3 credentials and bucket
+   - Ensure bucket {{ .Values.s3.bucket }} exists at {{ .Values.s3.endpoint }}.
+   - If using a secret, set values.s3.existingSecret to reference an existing Secret
+
+4) UI backend URL
+   - The UI uses API host configuration baked into the frontend build.
+   - If you need a non-default API host, update the UI build or add runtime injection as described
+     in the chart README.

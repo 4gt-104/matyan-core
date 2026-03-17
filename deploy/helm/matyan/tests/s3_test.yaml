@@ -1,0 +1,219 @@
+suite: S3 helpers — endpoint, public endpoint, and credentials
+
+templates:
+  - templates/backend-deployment.yaml
+  - templates/frontier-deployment.yaml
+
+tests:
+
+# ---------------------------------------------------------------------------
+# Internal endpoint — matyan.s3Endpoint
+# ---------------------------------------------------------------------------
+
+  - it: when rustfs.install=true, S3_ENDPOINT auto-derives to in-cluster RustFS service
+    values:
+      - fixtures/base.yaml
+    set:
+      rustfs.install: true
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].env[?(@.name=="S3_ENDPOINT")].value
+          value: "http://RELEASE-NAME-rustfs-svc:9000"
+        template: templates/backend-deployment.yaml
+      - equal:
+          path: spec.template.spec.containers[0].env[?(@.name=="S3_ENDPOINT")].value
+          value: "http://RELEASE-NAME-rustfs-svc:9000"
+        template: templates/frontier-deployment.yaml
+
+  - it: when rustfs.install=false, S3_ENDPOINT uses s3.endpoint
+    values:
+      - fixtures/base.yaml
+    set:
+      rustfs.install: false
+      s3.endpoint: "https://s3.amazonaws.com"
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].env[?(@.name=="S3_ENDPOINT")].value
+          value: "https://s3.amazonaws.com"
+        template: templates/backend-deployment.yaml
+      - equal:
+          path: spec.template.spec.containers[0].env[?(@.name=="S3_ENDPOINT")].value
+          value: "https://s3.amazonaws.com"
+        template: templates/frontier-deployment.yaml
+
+# ---------------------------------------------------------------------------
+# Public endpoint — matyan.s3PublicEndpoint (frontier only)
+# Priority: explicit s3.publicEndpoint > rustfs.s3Ingress hosts > s3.endpoint
+# ---------------------------------------------------------------------------
+
+  - it: explicit s3.publicEndpoint takes priority over all other sources
+    values:
+      - fixtures/base.yaml
+    set:
+      s3.publicEndpoint: "https://blobs.example.com"
+      rustfs.install: true
+      rustfs.s3Ingress.enabled: true
+      rustfs.s3Ingress.hosts:
+        - host: "rustfs.example.com"
+          paths:
+            - path: /
+              pathType: Prefix
+              port: 9000
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].env[?(@.name=="S3_PUBLIC_ENDPOINT")].value
+          value: "https://blobs.example.com"
+        template: templates/frontier-deployment.yaml
+
+  - it: when rustfs.install=true and s3Ingress has TLS, public endpoint is https
+    values:
+      - fixtures/base.yaml
+    set:
+      rustfs.install: true
+      rustfs.s3Ingress.enabled: true
+      rustfs.s3Ingress.hosts:
+        - host: "rustfs.example.com"
+          paths:
+            - path: /
+              pathType: Prefix
+              port: 9000
+      rustfs.s3Ingress.tls:
+        - hosts:
+            - "rustfs.example.com"
+          secretName: "rustfs-tls"
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].env[?(@.name=="S3_PUBLIC_ENDPOINT")].value
+          value: "https://rustfs.example.com"
+        template: templates/frontier-deployment.yaml
+
+  - it: when rustfs.install=true and s3Ingress has no TLS, public endpoint is http
+    values:
+      - fixtures/base.yaml
+    set:
+      rustfs.install: true
+      rustfs.s3Ingress.enabled: true
+      rustfs.s3Ingress.hosts:
+        - host: "rustfs.example.com"
+          paths:
+            - path: /
+              pathType: Prefix
+              port: 9000
+      rustfs.s3Ingress.tls: []
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].env[?(@.name=="S3_PUBLIC_ENDPOINT")].value
+          value: "http://rustfs.example.com"
+        template: templates/frontier-deployment.yaml
+
+  - it: when s3Ingress disabled, public endpoint falls back to s3.endpoint
+    values:
+      - fixtures/base.yaml
+    set:
+      rustfs.install: false
+      s3.endpoint: "https://minio.internal:9000"
+      rustfs.s3Ingress.enabled: false
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].env[?(@.name=="S3_PUBLIC_ENDPOINT")].value
+          value: "https://minio.internal:9000"
+        template: templates/frontier-deployment.yaml
+
+  - it: when rustfs.install=true but s3Ingress has empty hosts, public endpoint falls back to in-cluster endpoint
+    values:
+      - fixtures/base.yaml
+    set:
+      rustfs.install: true
+      rustfs.s3Ingress.enabled: true
+      rustfs.s3Ingress.hosts: []
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].env[?(@.name=="S3_PUBLIC_ENDPOINT")].value
+          value: "http://RELEASE-NAME-rustfs-svc:9000"
+        template: templates/frontier-deployment.yaml
+
+# ---------------------------------------------------------------------------
+# S3 credentials — matyan.s3AccessKey / matyan.s3SecretKey
+# ---------------------------------------------------------------------------
+
+  - it: when rustfs.install=true, S3_ACCESS_KEY and S3_SECRET_KEY come from rustfs.auth
+    values:
+      - fixtures/base.yaml
+    set:
+      rustfs.install: true
+      rustfs.auth.accessKey: "rustfsuser"
+      rustfs.auth.secretKey: "rustfspass"
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].env[?(@.name=="S3_ACCESS_KEY")].value
+          value: "rustfsuser"
+        template: templates/backend-deployment.yaml
+      - equal:
+          path: spec.template.spec.containers[0].env[?(@.name=="S3_SECRET_KEY")].value
+          value: "rustfspass"
+        template: templates/backend-deployment.yaml
+
+  - it: when rustfs.install=false, S3_ACCESS_KEY comes from s3.accessKey
+    values:
+      - fixtures/base.yaml
+    set:
+      rustfs.install: false
+      s3.accessKey: "AKIAIOSFODNN7EXAMPLE"
+      s3.secretKey: "wJalrXUtnFEMI"
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].env[?(@.name=="S3_ACCESS_KEY")].value
+          value: "AKIAIOSFODNN7EXAMPLE"
+        template: templates/backend-deployment.yaml
+      - equal:
+          path: spec.template.spec.containers[0].env[?(@.name=="S3_SECRET_KEY")].value
+          value: "wJalrXUtnFEMI"
+        template: templates/backend-deployment.yaml
+
+  - it: when s3.existingSecret is set, credentials come from secretKeyRef not plain values
+    values:
+      - fixtures/base.yaml
+    set:
+      s3.existingSecret: "my-s3-secret"
+      s3.accessKeyKey: "s3-access-key"
+      s3.secretKeyKey: "s3-secret-key"
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].env[?(@.name=="S3_ACCESS_KEY")].valueFrom.secretKeyRef.name
+          value: "my-s3-secret"
+        template: templates/backend-deployment.yaml
+      - equal:
+          path: spec.template.spec.containers[0].env[?(@.name=="S3_ACCESS_KEY")].valueFrom.secretKeyRef.key
+          value: "s3-access-key"
+        template: templates/backend-deployment.yaml
+      - equal:
+          path: spec.template.spec.containers[0].env[?(@.name=="S3_SECRET_KEY")].valueFrom.secretKeyRef.name
+          value: "my-s3-secret"
+        template: templates/backend-deployment.yaml
+      - isNull:
+          path: spec.template.spec.containers[0].env[?(@.name=="S3_ACCESS_KEY")].value
+        template: templates/backend-deployment.yaml
+
+  - it: s3.existingSecret credentials are propagated to frontier as well
+    values:
+      - fixtures/base.yaml
+    set:
+      s3.existingSecret: "my-s3-secret"
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].env[?(@.name=="S3_ACCESS_KEY")].valueFrom.secretKeyRef.name
+          value: "my-s3-secret"
+        template: templates/frontier-deployment.yaml
+
+  - it: rustfs credentials take precedence over s3.accessKey even when both are set
+    values:
+      - fixtures/base.yaml
+    set:
+      rustfs.install: true
+      rustfs.auth.accessKey: "fromrustfs"
+      s3.accessKey: "fromsection"
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].env[?(@.name=="S3_ACCESS_KEY")].value
+          value: "fromrustfs"
+        template: templates/backend-deployment.yaml

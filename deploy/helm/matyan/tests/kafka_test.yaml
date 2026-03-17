@@ -1,0 +1,284 @@
+suite: Kafka helpers and init containers
+
+templates:
+  - templates/backend-deployment.yaml
+  - templates/frontier-deployment.yaml
+  - templates/ingestion-worker-deployment.yaml
+  - templates/control-worker-deployment.yaml
+
+# ---------------------------------------------------------------------------
+# Bootstrap servers — matyan.kafkaBootstrapServers
+# ---------------------------------------------------------------------------
+
+tests:
+  - it: explicit kafkaClient.bootstrapServers is used as-is
+    values:
+      - fixtures/base.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].env[?(@.name=="KAFKA_BOOTSTRAP_SERVERS")].value
+          value: "kafka:9092"
+        template: templates/backend-deployment.yaml
+
+  - it: when kafka.install=true and no explicit bootstrapServers, auto-derives in-cluster address
+    values:
+      - fixtures/base.yaml
+    set:
+      kafka.install: true
+      kafkaClient.bootstrapServers: ""
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].env[?(@.name=="KAFKA_BOOTSTRAP_SERVERS")].value
+          value: "RELEASE-NAME-kafka:9092"
+        template: templates/backend-deployment.yaml
+
+  - it: explicit kafkaClient.bootstrapServers wins over kafka.install auto-derive
+    values:
+      - fixtures/base.yaml
+    set:
+      kafka.install: true
+      kafkaClient.bootstrapServers: "external-kafka:9092"
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].env[?(@.name=="KAFKA_BOOTSTRAP_SERVERS")].value
+          value: "external-kafka:9092"
+        template: templates/backend-deployment.yaml
+
+  - it: bootstrap servers are propagated to frontier as well
+    values:
+      - fixtures/base.yaml
+    set:
+      kafkaClient.bootstrapServers: "my-kafka:9092"
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].env[?(@.name=="KAFKA_BOOTSTRAP_SERVERS")].value
+          value: "my-kafka:9092"
+        template: templates/frontier-deployment.yaml
+
+  - it: bootstrap servers are propagated to ingestion-worker
+    values:
+      - fixtures/base.yaml
+    set:
+      kafkaClient.bootstrapServers: "my-kafka:9092"
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].env[?(@.name=="KAFKA_BOOTSTRAP_SERVERS")].value
+          value: "my-kafka:9092"
+        template: templates/ingestion-worker-deployment.yaml
+
+# ---------------------------------------------------------------------------
+# Security protocol — matyan.kafkaSecurityProtocol
+# ---------------------------------------------------------------------------
+
+  - it: KAFKA_SECURITY_PROTOCOL is absent when kafka.install=true and protocol is PLAINTEXT
+    values:
+      - fixtures/base.yaml
+    set:
+      kafka.install: true
+      kafka.listeners.client.protocol: PLAINTEXT
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: KAFKA_SECURITY_PROTOCOL
+          any: true
+        template: templates/backend-deployment.yaml
+
+  - it: KAFKA_SECURITY_PROTOCOL is set when kafka.install=true and protocol is SASL_PLAINTEXT
+    values:
+      - fixtures/base.yaml
+    set:
+      kafka.install: true
+      kafka.listeners.client.protocol: SASL_PLAINTEXT
+      kafkaClient.bootstrapServers: ""
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: KAFKA_SECURITY_PROTOCOL
+            value: "SASL_PLAINTEXT"
+        template: templates/backend-deployment.yaml
+
+  - it: KAFKA_SECURITY_PROTOCOL is set from kafkaClient.securityProtocol when kafka.install=false
+    values:
+      - fixtures/base.yaml
+    set:
+      kafkaClient.securityProtocol: "SSL"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: KAFKA_SECURITY_PROTOCOL
+            value: "SSL"
+        template: templates/backend-deployment.yaml
+
+  - it: KAFKA_SECURITY_PROTOCOL is absent when kafkaClient.securityProtocol is empty and kafka.install=false
+    values:
+      - fixtures/base.yaml
+    set:
+      kafkaClient.securityProtocol: ""
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: KAFKA_SECURITY_PROTOCOL
+          any: true
+        template: templates/backend-deployment.yaml
+
+  - it: KAFKA_SECURITY_PROTOCOL is propagated to frontier
+    values:
+      - fixtures/base.yaml
+    set:
+      kafkaClient.securityProtocol: "SASL_SSL"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: KAFKA_SECURITY_PROTOCOL
+            value: "SASL_SSL"
+        template: templates/frontier-deployment.yaml
+
+# ---------------------------------------------------------------------------
+# SASL mechanism — matyan.kafkaSaslMechanism
+# ---------------------------------------------------------------------------
+
+  - it: KAFKA_SASL_MECHANISM is set from kafkaClient.saslMechanism when kafka.install=false
+    values:
+      - fixtures/base.yaml
+    set:
+      kafkaClient.saslMechanism: "SCRAM-SHA-256"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: KAFKA_SASL_MECHANISM
+            value: "SCRAM-SHA-256"
+        template: templates/backend-deployment.yaml
+
+  - it: KAFKA_SASL_MECHANISM is absent when kafkaClient.saslMechanism is empty
+    values:
+      - fixtures/base.yaml
+    set:
+      kafkaClient.saslMechanism: ""
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: KAFKA_SASL_MECHANISM
+          any: true
+        template: templates/backend-deployment.yaml
+
+  - it: KAFKA_SASL_MECHANISM is propagated to frontier
+    values:
+      - fixtures/base.yaml
+    set:
+      kafkaClient.saslMechanism: "PLAIN"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: KAFKA_SASL_MECHANISM
+            value: "PLAIN"
+        template: templates/frontier-deployment.yaml
+
+# ---------------------------------------------------------------------------
+# wait-for-kafka init container
+# ---------------------------------------------------------------------------
+
+  - it: wait-for-kafka init container is present in backend by default
+    values:
+      - fixtures/base.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.initContainers
+          content:
+            name: wait-for-kafka
+          any: true
+        template: templates/backend-deployment.yaml
+
+  - it: wait-for-kafka init container is present in frontier by default
+    values:
+      - fixtures/base.yaml
+    asserts:
+      - isNotNull:
+          path: spec.template.spec.initContainers
+        template: templates/frontier-deployment.yaml
+      - contains:
+          path: spec.template.spec.initContainers
+          content:
+            name: wait-for-kafka
+          any: true
+        template: templates/frontier-deployment.yaml
+
+  - it: wait-for-kafka init container is present in ingestion-worker by default
+    values:
+      - fixtures/base.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.initContainers
+          content:
+            name: wait-for-kafka
+          any: true
+        template: templates/ingestion-worker-deployment.yaml
+
+  - it: wait-for-kafka init container is present in control-worker by default
+    values:
+      - fixtures/base.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.initContainers
+          content:
+            name: wait-for-kafka
+          any: true
+        template: templates/control-worker-deployment.yaml
+
+  - it: wait-for-kafka init container is absent from all deployments when disabled
+    values:
+      - fixtures/base.yaml
+    set:
+      kafka.waitForReady.enabled: false
+    asserts:
+      - notContains:
+          path: spec.template.spec.initContainers
+          content:
+            name: wait-for-kafka
+          any: true
+        template: templates/backend-deployment.yaml
+      - notContains:
+          path: spec.template.spec.initContainers
+          content:
+            name: wait-for-kafka
+          any: true
+        template: templates/ingestion-worker-deployment.yaml
+      - notContains:
+          path: spec.template.spec.initContainers
+          content:
+            name: wait-for-kafka
+          any: true
+        template: templates/control-worker-deployment.yaml
+
+  - it: wait-for-kafka init container is absent from frontier when disabled
+    values:
+      - fixtures/base.yaml
+    set:
+      kafka.waitForReady.enabled: false
+    asserts:
+      - isNull:
+          path: spec.template.spec.initContainers
+        template: templates/frontier-deployment.yaml
+
+  - it: wait-for-kafka init container uses configured image and timeout
+    values:
+      - fixtures/base.yaml
+    set:
+      kafka.waitForReady.image.repository: "bitnami/kafka"
+      kafka.waitForReady.image.tag: "3.9.0"
+      kafka.waitForReady.timeoutSeconds: 120
+    asserts:
+      - contains:
+          path: spec.template.spec.initContainers
+          content:
+            name: wait-for-kafka
+            image: "bitnami/kafka:3.9.0"
+          any: true
+        template: templates/backend-deployment.yaml

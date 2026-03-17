@@ -1,0 +1,49 @@
+{{- if .Values.rustfs.install }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "matyan.fullname" . }}-s3-init
+  labels:
+    {{- include "matyan.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        {{- include "matyan.labels" . | nindent 8 }}
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: s3-init
+          image: "{{ .Values.s3.initImage.repository }}:{{ .Values.s3.initImage.tag }}"
+          imagePullPolicy: {{ .Values.s3.initImage.pullPolicy }}
+          env:
+            {{- if .Values.s3.existingSecret }}
+            - name: MINIO_ROOT_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.s3.existingSecret }}
+                  key: {{ .Values.s3.accessKeyKey | default "s3-access-key" }}
+            - name: MINIO_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.s3.existingSecret }}
+                  key: {{ .Values.s3.secretKeyKey | default "s3-secret-key" }}
+            {{- else }}
+            - name: MINIO_ROOT_USER
+              value: {{ include "matyan.s3AccessKey" . | quote }}
+            - name: MINIO_ROOT_PASSWORD
+              value: {{ include "matyan.s3SecretKey" . | quote }}
+            {{- end }}
+          command:
+            - /bin/sh
+            - -c
+          args:
+            - |
+              set -e
+              mc alias set matyan {{ include "matyan.s3Endpoint" . }} "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD"
+              mc mb -p "matyan/{{ .Values.s3.bucket }}" || true
+{{- end }}

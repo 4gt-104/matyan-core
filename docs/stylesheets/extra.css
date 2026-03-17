@@ -1,0 +1,20 @@
+/* Logo visibility by color scheme*/
+.gh-dark-mode-only {
+  display: none;
+}
+.gh-light-mode-only {
+  display: none;
+}
+
+[data-md-color-scheme="default"] .gh-light-mode-only {
+  display: inline-block;
+}
+[data-md-color-scheme="default"] .gh-dark-mode-only {
+  display: none !important;
+}
+[data-md-color-scheme="slate"] .gh-dark-mode-only {
+  display: inline-block;
+}
+[data-md-color-scheme="slate"] .gh-light-mode-only {
+  display: none !important;
+}

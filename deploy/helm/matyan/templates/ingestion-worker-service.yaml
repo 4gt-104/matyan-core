@@ -1,0 +1,24 @@
+{{- if .Values.ingestionWorker.metricsPort }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "matyan.fullname" . }}-ingestion-worker
+  labels:
+    {{- include "matyan.labels" . | nindent 4 }}
+    app.kubernetes.io/component: ingestion-worker
+  {{- with .Values.commonAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: ClusterIP
+  clusterIP: None
+  ports:
+    - name: metrics
+      port: {{ .Values.ingestionWorker.metricsPort }}
+      targetPort: metrics
+      protocol: TCP
+  selector:
+    {{- include "matyan.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: ingestion-worker
+{{- end }}

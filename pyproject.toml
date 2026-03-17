@@ -1,0 +1,44 @@
+[project]
+name = "matyan-core"
+version = "0.1.0"
+description = "Matyan monorepo — experiment tracking (Aim fork) with FDB backend"
+readme = "README.md"
+requires-python = ">=3.12, <4"
+authors = [
+    { name = "Tigran Grigoryan", email = "grigoryan.tigran119@gmail.com" },
+]
+license = { text = "Apache-2.0" }
+keywords = ["experiment-tracking", "mlops", "matyan", "aim"]
+
+dependencies = []
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Scientific/Engineering",
+    "Typing :: Typed",
+]
+
+[project.urls]
+Homepage = "https://github.com/4gt-104/matyan-core"
+Repository = "https://github.com/4gt-104/matyan-core"
+Documentation = "https://4gt-104.github.io/matyan-core/"
+
+[dependency-groups]
+dev = ["pytest~=8.0"]
+docs = [
+    "mkdocs-material~=9.7",
+    "pymdown-extensions~=10.21",
+    "mkdocs~=1.6",
+    "mkdocstrings[python]~=1.0",
+]
+[tool.pytest.ini_options]
+markers = [
+    "integration: integration tests (require backend, frontier, Kafka, etc.; skip when services unavailable)",
+]

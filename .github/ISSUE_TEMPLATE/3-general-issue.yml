@@ -1,0 +1,56 @@
+---
+name: General Issue
+description: I have a general issue or question
+title: "[Question/Task]: "
+labels: ["question"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a general issue! This helps us improve Matyan.
+  - type: input
+    id: contact
+    attributes:
+      label: Contact Details (optional)
+      description: How can we get in touch with you if we need more info?
+      placeholder: youre@example.com
+    validations:
+      required: false
+  - type: textarea
+    id: system-information
+    attributes:
+      label: System / component versions
+      description: Output of `matyan-client status` if relevant
+      placeholder: Paste the output of `matyan-client status` or describe your environment.
+    validations:
+      required: false
+  - type: textarea
+    id: issue-description
+    attributes:
+      label: Issue Description
+      description: What is the general issue you'd like to report?
+      placeholder: A clear and concise description of your issue.
+    validations:
+      required: true
+  - type: textarea
+    id: code-snippet
+    attributes:
+      label: Code Snippet (optional)
+      description: Where possible please include a self-contained code snippet that exemplifies your issue.
+      value: |
+        ```python
+        from matyan_client import Run, Repo
+
+        # Your code here
+        ```
+      render: markdown
+    validations:
+      required: false
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Guidelines
+      description: By submitting this issue, you agree to follow our [contributing guidelines](docs/contributing.md).
+    options:
+      - label: I agree to follow this project's contributing guidelines
+        required: true

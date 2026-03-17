@@ -1,0 +1,396 @@
+suite: Ingress routing, TLS, CORS origins, and UI API host fallback
+
+templates:
+  - templates/ingress.yaml
+  - templates/backend-deployment.yaml
+  - templates/ui-deployment.yaml
+
+tests:
+
+# ---------------------------------------------------------------------------
+# Ingress rendering gate
+# ---------------------------------------------------------------------------
+
+  - it: Ingress resource is not rendered when ingress.enabled=false
+    values:
+      - fixtures/base.yaml
+    set:
+      ingress.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+        template: templates/ingress.yaml
+
+  - it: Ingress resource is rendered when ingress.enabled=true
+    values:
+      - fixtures/base.yaml
+    set:
+      ingress.enabled: true
+    asserts:
+      - hasDocuments:
+          count: 1
+        template: templates/ingress.yaml
+      - isKind:
+          of: Ingress
+        template: templates/ingress.yaml
+
+# ---------------------------------------------------------------------------
+# Same-host routing — ui.hostBase and backend.hostBase share one hostname
+# ---------------------------------------------------------------------------
+
+  - it: single host rule is generated when ui and backend share the same hostname
+    values:
+      - fixtures/base.yaml
+    set:
+      ingress.enabled: true
+      ui.hostBase: "https://matyan.example.com"
+      backend.hostBase: "https://matyan.example.com"
+    asserts:
+      - lengthEqual:
+          path: spec.rules
+          count: 1
+        template: templates/ingress.yaml
+      - equal:
+          path: spec.rules[0].host
+          value: "matyan.example.com"
+        template: templates/ingress.yaml
+
+  - it: same-host rule has UI path at /
+    values:
+      - fixtures/base.yaml
+    set:
+      ingress.enabled: true
+      ui.hostBase: "https://matyan.example.com"
+      backend.hostBase: "https://matyan.example.com"
+    asserts:
+      - contains:
+          path: spec.rules[0].http.paths
+          content:
+            path: "/"
+            pathType: Prefix
+          any: true
+        template: templates/ingress.yaml
+
+  - it: same-host rule routes /api to backend
+    values:
+      - fixtures/base.yaml
+    set:
+      ingress.enabled: true
+      ui.hostBase: "https://matyan.example.com"
+      backend.hostBase: "https://matyan.example.com"
+    asserts:
+      - contains:
+          path: spec.rules[0].http.paths
+          content:
+            path: "/api"
+            pathType: Prefix
+          any: true
+        template: templates/ingress.yaml
+
+  - it: same-host rule routes /api/v1/ws to frontier
+    values:
+      - fixtures/base.yaml
+    set:
+      ingress.enabled: true
+      ui.hostBase: "https://matyan.example.com"
+      backend.hostBase: "https://matyan.example.com"
+    asserts:
+      - contains:
+          path: spec.rules[0].http.paths
+          content:
+            path: "/api/v1/ws"
+            pathType: Prefix
+          any: true
+        template: templates/ingress.yaml
+
+  - it: same-host rule routes /api/v1/rest/artifacts to frontier
+    values:
+      - fixtures/base.yaml
+    set:
+      ingress.enabled: true
+      ui.hostBase: "https://matyan.example.com"
+      backend.hostBase: "https://matyan.example.com"
+    asserts:
+      - contains:
+          path: spec.rules[0].http.paths
+          content:
+            path: "/api/v1/rest/artifacts"
+            pathType: Prefix
+          any: true
+        template: templates/ingress.yaml
+
+# ---------------------------------------------------------------------------
+# Split-host routing — ui.hostBase and backend.hostBase have different hostnames
+# ---------------------------------------------------------------------------
+
+  - it: two host rules are generated when ui and backend have different hostnames
+    values:
+      - fixtures/base.yaml
+    set:
+      ingress.enabled: true
+      ui.hostBase: "https://matyan.example.com"
+      backend.hostBase: "https://api.example.com"
+    asserts:
+      - lengthEqual:
+          path: spec.rules
+          count: 2
+        template: templates/ingress.yaml
+
+  - it: split-host UI rule has only the / path (not /api or /api/v1/ws)
+    values:
+      - fixtures/base.yaml
+    set:
+      ingress.enabled: true
+      ui.hostBase: "https://matyan.example.com"
+      backend.hostBase: "https://api.example.com"
+    asserts:
+      - equal:
+          path: spec.rules[0].host
+          value: "matyan.example.com"
+        template: templates/ingress.yaml
+      - lengthEqual:
+          path: spec.rules[0].http.paths
+          count: 1
+        template: templates/ingress.yaml
+      - equal:
+          path: spec.rules[0].http.paths[0].path
+          value: "/"
+        template: templates/ingress.yaml
+
+  - it: split-host backend rule has /api, /api/v1/ws, and /api/v1/rest/artifacts paths
+    values:
+      - fixtures/base.yaml
+    set:
+      ingress.enabled: true
+      ui.hostBase: "https://matyan.example.com"
+      backend.hostBase: "https://api.example.com"
+    asserts:
+      - equal:
+          path: spec.rules[1].host
+          value: "api.example.com"
+        template: templates/ingress.yaml
+      - lengthEqual:
+          path: spec.rules[1].http.paths
+          count: 3
+        template: templates/ingress.yaml
+
+# ---------------------------------------------------------------------------
+# TLS auto-generation
+# ---------------------------------------------------------------------------
+
+  - it: TLS entry is generated when ui.hostBase uses https
+    values:
+      - fixtures/base.yaml
+    set:
+      ingress.enabled: true
+      ui.hostBase: "https://matyan.example.com"
+      backend.hostBase: "https://matyan.example.com"
+    asserts:
+      - isNotNull:
+          path: spec.tls
+        template: templates/ingress.yaml
+      - contains:
+          path: spec.tls[0].hosts
+          content: "matyan.example.com"
+        template: templates/ingress.yaml
+
+  - it: no TLS entry when both hostBases use http
+    values:
+      - fixtures/base.yaml
+    set:
+      ingress.enabled: true
+      ui.hostBase: "http://matyan.example.com"
+      backend.hostBase: "http://matyan.example.com"
+    asserts:
+      - isNull:
+          path: spec.tls
+        template: templates/ingress.yaml
+
+  - it: uiTlsSecretName is used in the TLS entry when set
+    values:
+      - fixtures/base.yaml
+    set:
+      ingress.enabled: true
+      ui.hostBase: "https://matyan.example.com"
+      backend.hostBase: "https://matyan.example.com"
+      ingress.uiTlsSecretName: "my-ui-tls"
+    asserts:
+      - equal:
+          path: spec.tls[0].secretName
+          value: "my-ui-tls"
+        template: templates/ingress.yaml
+
+  - it: TLS entry has no secretName field when uiTlsSecretName is not set
+    values:
+      - fixtures/base.yaml
+    set:
+      ingress.enabled: true
+      ui.hostBase: "https://matyan.example.com"
+      backend.hostBase: "https://matyan.example.com"
+      ingress.uiTlsSecretName: ""
+    asserts:
+      - isNull:
+          path: spec.tls[0].secretName
+        template: templates/ingress.yaml
+
+  - it: split-host with both on https generates two TLS entries
+    values:
+      - fixtures/base.yaml
+    set:
+      ingress.enabled: true
+      ui.hostBase: "https://matyan.example.com"
+      backend.hostBase: "https://api.example.com"
+    asserts:
+      - lengthEqual:
+          path: spec.tls
+          count: 2
+        template: templates/ingress.yaml
+
+  - it: backendTlsSecretName is used for the backend TLS entry in split-host mode
+    values:
+      - fixtures/base.yaml
+    set:
+      ingress.enabled: true
+      ui.hostBase: "https://matyan.example.com"
+      backend.hostBase: "https://api.example.com"
+      ingress.backendTlsSecretName: "my-api-tls"
+    asserts:
+      - equal:
+          path: spec.tls[1].secretName
+          value: "my-api-tls"
+        template: templates/ingress.yaml
+
+# ---------------------------------------------------------------------------
+# Annotations — commonAnnotations merged with ingress.annotations
+# ---------------------------------------------------------------------------
+
+  - it: commonAnnotations are applied to the Ingress resource
+    values:
+      - fixtures/base.yaml
+    set:
+      ingress.enabled: true
+      ui.hostBase: "https://matyan.example.com"
+      backend.hostBase: "https://matyan.example.com"
+      commonAnnotations:
+        team: "mlops"
+    asserts:
+      - equal:
+          path: metadata.annotations["team"]
+          value: "mlops"
+        template: templates/ingress.yaml
+
+  - it: ingress.annotations are applied to the Ingress resource
+    values:
+      - fixtures/base.yaml
+    set:
+      ingress.enabled: true
+      ui.hostBase: "https://matyan.example.com"
+      backend.hostBase: "https://matyan.example.com"
+      ingress.annotations:
+        cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    asserts:
+      - equal:
+          path: metadata.annotations["cert-manager.io/cluster-issuer"]
+          value: "letsencrypt-prod"
+        template: templates/ingress.yaml
+
+  - it: commonAnnotations and ingress.annotations are merged together on the Ingress
+    values:
+      - fixtures/base.yaml
+    set:
+      ingress.enabled: true
+      ui.hostBase: "https://matyan.example.com"
+      backend.hostBase: "https://matyan.example.com"
+      commonAnnotations:
+        team: "mlops"
+      ingress.annotations:
+        cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    asserts:
+      - equal:
+          path: metadata.annotations["team"]
+          value: "mlops"
+        template: templates/ingress.yaml
+      - equal:
+          path: metadata.annotations["cert-manager.io/cluster-issuer"]
+          value: "letsencrypt-prod"
+        template: templates/ingress.yaml
+
+  - it: ingressClassName is set when ingress.className is provided
+    values:
+      - fixtures/base.yaml
+    set:
+      ingress.enabled: true
+      ui.hostBase: "https://matyan.example.com"
+      backend.hostBase: "https://matyan.example.com"
+      ingress.className: "nginx"
+    asserts:
+      - equal:
+          path: spec.ingressClassName
+          value: "nginx"
+        template: templates/ingress.yaml
+
+# ---------------------------------------------------------------------------
+# UI API host fallback — matyan.uiApiHostBase
+# ---------------------------------------------------------------------------
+
+  - it: MATYAN_UI_API_HOST_BASE falls back to backend.hostBase when ui.apiHostBase is empty
+    values:
+      - fixtures/base.yaml
+    set:
+      backend.hostBase: "https://api.example.com"
+      ui.apiHostBase: ""
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].env[?(@.name=="MATYAN_UI_API_HOST_BASE")].value
+          value: "https://api.example.com"
+        template: templates/ui-deployment.yaml
+
+  - it: MATYAN_UI_API_HOST_BASE uses explicit ui.apiHostBase when set
+    values:
+      - fixtures/base.yaml
+    set:
+      backend.hostBase: "https://api.example.com"
+      ui.apiHostBase: "https://custom-backend.example.com"
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].env[?(@.name=="MATYAN_UI_API_HOST_BASE")].value
+          value: "https://custom-backend.example.com"
+        template: templates/ui-deployment.yaml
+
+# ---------------------------------------------------------------------------
+# CORS origins — matyan.corsOrigins
+# ---------------------------------------------------------------------------
+
+  - it: CORS_ORIGINS always includes ui.hostBase
+    values:
+      - fixtures/base.yaml
+    set:
+      ui.hostBase: "https://matyan.example.com"
+      cors.origins: []
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].env[?(@.name=="CORS_ORIGINS")].value
+          pattern: "matyan.example.com"
+        template: templates/backend-deployment.yaml
+
+  - it: CORS_ORIGINS includes additional cors.origins entries
+    values:
+      - fixtures/base.yaml
+    set:
+      ui.hostBase: "https://matyan.example.com"
+      cors.origins:
+        - "http://localhost:3000"
+        - "https://staging.example.com"
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].env[?(@.name=="CORS_ORIGINS")].value
+          pattern: "localhost:3000"
+        template: templates/backend-deployment.yaml
+      - matchRegex:
+          path: spec.template.spec.containers[0].env[?(@.name=="CORS_ORIGINS")].value
+          pattern: "staging.example.com"
+        template: templates/backend-deployment.yaml
+      - matchRegex:
+          path: spec.template.spec.containers[0].env[?(@.name=="CORS_ORIGINS")].value
+          pattern: "matyan.example.com"
+        template: templates/backend-deployment.yaml

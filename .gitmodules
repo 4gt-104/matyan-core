@@ -1,0 +1,18 @@
+[submodule "extra/matyan-api-models"]
+	path = extra/matyan-api-models
+	url = https://github.com/4gt-104/matyan-api-models.git
+[submodule "extra/matyan-backend"]
+	path = extra/matyan-backend
+	url = https://github.com/4gt-104/matyan-backend.git
+[submodule "extra/matyan-frontier"]
+	path = extra/matyan-frontier
+	url = https://github.com/4gt-104/matyan-frontier.git
+[submodule "extra/matyan-client"]
+	path = extra/matyan-client
+	url = https://github.com/4gt-104/matyan-client.git
+[submodule "extra/matyan-ui"]
+	path = extra/matyan-ui
+	url = https://github.com/4gt-104/matyan-ui.git
+[submodule "gh-pages"]
+	path = gh-pages
+	url = https://github.com/4gt-104/4gt-104.github.io.git

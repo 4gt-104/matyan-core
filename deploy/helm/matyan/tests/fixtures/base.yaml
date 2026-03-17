@@ -1,0 +1,9 @@
+# Minimum required values shared by every test suite.
+# ui.hostBase, backend.hostBase, and kafkaClient.bootstrapServers must be
+# non-empty or helm template fails with a required-field error.
+ui:
+  hostBase: "https://matyan.example.com"
+backend:
+  hostBase: "https://api.example.com"
+kafkaClient:
+  bootstrapServers: "kafka:9092"

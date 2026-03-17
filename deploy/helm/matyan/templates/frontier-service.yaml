@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "matyan.fullname" . }}-frontier
+  labels:
+    {{- include "matyan.labels" . | nindent 4 }}
+    app.kubernetes.io/component: frontier
+  {{- with .Values.commonAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.frontier.service.type }}
+  ports:
+    - name: http
+      port: {{ .Values.frontier.service.port }}
+      targetPort: http
+      protocol: TCP
+  selector:
+    {{- include "matyan.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: frontier

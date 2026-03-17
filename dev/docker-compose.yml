@@ -1,0 +1,256 @@
+# Matyan: infrastructure + application services
+#
+# Infrastructure (FDB, Kafka, RustFS) starts first; application services wait
+# for their dependencies (depends_on with condition where available).
+#
+# Usage:
+#   docker compose build
+#   docker compose up -d              # all services
+#   docker compose up backend          # just the API server
+#   docker compose logs -f backend    # tail logs
+
+services:
+  # --- Infrastructure ---
+
+  fdb-coordinator:
+    image: foundationdb/foundationdb:7.3.69
+    environment:
+      FDB_COORDINATOR_PORT: 4500
+    network_mode: "host"
+
+  fdb-init:
+    image: foundationdb/foundationdb:7.3.69
+    depends_on:
+      fdb-coordinator:
+        condition: service_started
+    entrypoint: ["fdbcli"]
+    command: ["--exec", "configure new single memory ; status"]
+    restart: "no"
+    network_mode: "host"
+    volumes:
+      - ./fdb.cluster:/var/fdb/fdb.cluster
+
+  kafka:
+    image: apache/kafka:latest
+    network_mode: "host"
+    environment:
+      KAFKA_NODE_ID: "1"
+      KAFKA_PROCESS_ROLES: "broker,controller"
+      KAFKA_CONTROLLER_QUORUM_VOTERS: "1@localhost:9093"
+      KAFKA_LISTENERS: "PLAINTEXT://:9092,CONTROLLER://:9093"
+      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://localhost:9092"
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT"
+      KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
+      KAFKA_INTER_BROKER_LISTENER_NAME: "PLAINTEXT"
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: "1"
+      CLUSTER_ID: "matyan-dev-kafka-00001"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "/opt/kafka/bin/kafka-topics.sh",
+          "--bootstrap-server",
+          "localhost:9092",
+          "--list",
+        ]
+      interval: 5s
+      timeout: 10s
+      retries: 10
+      start_period: 15s
+
+  kafka-init:
+    image: apache/kafka:latest
+    network_mode: "host"
+    depends_on:
+      kafka:
+        condition: service_healthy
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --create --if-not-exists --topic data-ingestion --partitions 6 --replication-factor 1 &&
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --create --if-not-exists --topic control-events --partitions 1 --replication-factor 1 &&
+        echo "Topics created successfully" &&
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list
+    restart: "no"
+
+  rustfs-init:
+    image: alpine
+    volumes:
+      - rustfs-data-0:/data0
+      - rustfs-data-1:/data1
+      - rustfs-data-2:/data2
+      - rustfs-data-3:/data3
+    command: sh -c "chown -R 10001:10001 /data0 /data1 /data2 /data3"
+    restart: "no"
+
+  rustfs:
+    image: rustfs/rustfs:latest
+    network_mode: "host"
+    environment:
+      RUSTFS_ACCESS_KEY: rustfsadmin
+      RUSTFS_SECRET_KEY: rustfsadmin
+      RUSTFS_VOLUMES: /data/rustfs{0...3}
+      RUSTFS_ADDRESS: "0.0.0.0:9000"
+      RUSTFS_CONSOLE_ADDRESS: "0.0.0.0:9001"
+    volumes:
+      - rustfs-data-0:/data/rustfs0
+      - rustfs-data-1:/data/rustfs1
+      - rustfs-data-2:/data/rustfs2
+      - rustfs-data-3:/data/rustfs3
+    depends_on:
+      rustfs-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:9000/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # --- Application ---
+
+  backend:
+    build:
+      context: ../extra
+      dockerfile: matyan-backend/Dockerfile.dev
+      platforms:
+        - "${DOCKER_PLATFORM}"
+    network_mode: "host"
+    depends_on:
+      fdb-init:
+        condition: service_completed_successfully
+      kafka-init:
+        condition: service_completed_successfully
+      rustfs:
+        condition: service_healthy
+    environment:
+      FDB_CLUSTER_FILE: /etc/foundationdb/fdb.cluster
+      S3_ENDPOINT: http://localhost:9000
+      S3_ACCESS_KEY: rustfsadmin
+      S3_SECRET_KEY: rustfsadmin
+      S3_BUCKET: matyan-artifacts
+      KAFKA_BOOTSTRAP_SERVERS: localhost:9092
+      CORS_ORIGINS: '["http://localhost:3000","http://localhost:8000","http://127.0.0.1:8000","http://localhost:53800"]'
+    volumes:
+      - ./fdb.cluster:/etc/foundationdb/fdb.cluster:ro
+    restart: unless-stopped
+    healthcheck:
+      test:
+        ["CMD", "curl", "-sf", "http://localhost:53800/api/v1/rest/projects/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  frontier:
+    build:
+      context: ../extra
+      dockerfile: matyan-frontier/Dockerfile.dev
+      platforms:
+        - "${DOCKER_PLATFORM}"
+    network_mode: "host"
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+      rustfs:
+        condition: service_healthy
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: localhost:9092
+      S3_ENDPOINT: http://localhost:9000
+      S3_ACCESS_KEY: rustfsadmin
+      S3_SECRET_KEY: rustfsadmin
+      S3_BUCKET: matyan-artifacts
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:53801/docs"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  ingestion-worker:
+    build:
+      context: ../extra
+      dockerfile: matyan-backend/Dockerfile.dev
+      platforms:
+        - "${DOCKER_PLATFORM}"
+    command: ["matyan-backend", "ingest-worker"]
+    network_mode: "host"
+    depends_on:
+      fdb-init:
+        condition: service_completed_successfully
+      kafka-init:
+        condition: service_completed_successfully
+      rustfs:
+        condition: service_healthy
+    environment:
+      FDB_CLUSTER_FILE: /etc/foundationdb/fdb.cluster
+      S3_ENDPOINT: http://localhost:9000
+      S3_ACCESS_KEY: rustfsadmin
+      S3_SECRET_KEY: rustfsadmin
+      S3_BUCKET: matyan-artifacts
+      KAFKA_BOOTSTRAP_SERVERS: localhost:9092
+      METRICS_PORT: "9101"
+    volumes:
+      - ./fdb.cluster:/etc/foundationdb/fdb.cluster:ro
+    restart: unless-stopped
+
+  control-worker:
+    build:
+      context: ../extra
+      dockerfile: matyan-backend/Dockerfile.dev
+      platforms:
+        - "${DOCKER_PLATFORM}"
+    command: ["matyan-backend", "control-worker"]
+    network_mode: "host"
+    depends_on:
+      fdb-init:
+        condition: service_completed_successfully
+      kafka-init:
+        condition: service_completed_successfully
+      rustfs:
+        condition: service_healthy
+    environment:
+      FDB_CLUSTER_FILE: /etc/foundationdb/fdb.cluster
+      S3_ENDPOINT: http://localhost:9000
+      S3_ACCESS_KEY: rustfsadmin
+      S3_SECRET_KEY: rustfsadmin
+      S3_BUCKET: matyan-artifacts
+      KAFKA_BOOTSTRAP_SERVERS: localhost:9092
+      METRICS_PORT: "9102"
+    volumes:
+      - ./fdb.cluster:/etc/foundationdb/fdb.cluster:ro
+    restart: unless-stopped
+
+  ui:
+    build:
+      context: ../extra
+      dockerfile: matyan-ui/Dockerfile.dev
+      platforms:
+        - "${DOCKER_PLATFORM}"
+    network_mode: "host"
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      AIM_S_UI_BASE_PATH: ""
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/')",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+volumes:
+  rustfs-data-0:
+  rustfs-data-1:
+  rustfs-data-2:
+  rustfs-data-3:

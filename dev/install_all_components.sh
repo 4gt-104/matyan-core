@@ -1,0 +1,1 @@
+uv pip install -e ./extra/matyan-api-models/ ./extra/matyan-backend/ ./extra/matyan-client/[extended] ./extra/matyan-frontier/ ./extra/matyan-ui/

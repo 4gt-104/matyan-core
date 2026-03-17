@@ -1,0 +1,112 @@
+---
+description: Logging conventions — loguru with structured key-value context in every log call
+globs: "**/*.py"
+alwaysApply: false
+---
+
+# Logging Conventions
+
+## Import
+
+Always use loguru. Never use stdlib `logging` directly.
+
+```python
+from loguru import logger
+```
+
+## Structured Context via `bind()` / keyword arguments
+
+Attach machine-readable key-value context to every log call. Prefer `logger.bind()` for per-request or per-unit-of-work context and keyword-style messages for per-event fields.
+
+```python
+# Per-request context (set once, applies to all subsequent calls)
+log = logger.bind(run_id=msg.run_id, worker="ingestion")
+log.info("Processing message", msg_type=msg.type, partition=record.partition)
+
+# One-off structured fields
+logger.info("Kafka producer started", bootstrap_servers=settings.kafka_bootstrap_servers)
+
+# In exception handlers — use logger.exception() (auto-attaches traceback)
+logger.exception("Failed to process message", offset=record.offset, partition=record.partition)
+```
+
+## Message Format
+
+- **Message**: short, static, human-readable string (no interpolation, no f-strings, no `{}`).
+- **Context**: all variable data goes as keyword arguments after the message.
+- This ensures log aggregators (Loki, Datadog, ELK) can index fields without parsing.
+
+```python
+# GOOD — static message + structured fields
+logger.info("Run created", run_id=run_hash, experiment=exp_name)
+logger.warning("Tag not found, skipping remove", tag=tag_name, run_id=run_hash)
+logger.debug("Metric logged", name=name, ctx_id=ctx_id, step=step, run_id=msg.run_id)
+
+# BAD — variable data baked into message string
+logger.info("Created run {}", run_hash)
+logger.info(f"Created run {run_hash}")
+logger.info("Created run " + run_hash)
+```
+
+## Log Levels
+
+| Level | Use for |
+|---|---|
+| `debug` | Step-level tracing, per-message processing, internal state |
+| `info` | Service lifecycle (start/stop), connection established, batch completed |
+| `warning` | Recoverable issues: bad input skipped, retry triggered, fallback used |
+| `error` | Failed operation that the caller will notice (request failed, data lost) |
+| `exception` | Same as `error` but inside an `except` block (auto-attaches traceback) |
+| `critical` | Service cannot continue (FDB unreachable, config invalid) |
+
+## Exception Handling
+
+Narrow exception types where possible. When a broad `except Exception` is needed (worker loops, finalizers), always log with `logger.exception()`.
+
+```python
+# Worker message loop — broad catch is acceptable, but must log
+try:
+    handler(db, msg)
+except Exception:
+    logger.exception("Failed to process message", msg_type=msg.type, run_id=msg.run_id)
+
+# HTTP fallback — narrow to transport errors
+try:
+    resp = self._client.get(url)
+    resp.raise_for_status()
+except httpx.HTTPError:
+    logger.exception("HTTP request failed", url=url)
+    return default
+```
+
+## Configuration (app startup)
+
+Configure loguru sinks once in `app.py` / `cli.py` lifespan. Use JSON serialization for production, human-readable for dev.
+
+```python
+import sys
+from loguru import logger
+
+def configure_logging(*, json: bool = False, level: str = "INFO") -> None:
+    logger.remove()  # remove default stderr sink
+    logger.add(
+        sys.stderr,
+        level=level,
+        serialize=json,  # True → JSON lines, False → human-readable
+    )
+```
+
+## Intercept stdlib logging
+
+Libraries that use stdlib `logging` (uvicorn, aiokafka, httpx) should be routed to loguru via `InterceptHandler` so all output goes through one sink.
+
+```python
+import logging
+
+class InterceptHandler(logging.Handler):
+    def emit(self, record: logging.LogRecord) -> None:
+        level = logger.level(record.levelname).name
+        logger.opt(depth=6, exception=record.exc_info).log(level, record.getMessage())
+
+logging.basicConfig(handlers=[InterceptHandler()], level=0, force=True)
+```

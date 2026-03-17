@@ -1,0 +1,104 @@
+site_name: Matyan
+site_description: Experiment tracking and ML observability — Aim-compatible UI and SDK with a scalable backend.
+site_url: https://4gt-104.github.io/matyan-core/
+repo_url: https://github.com/4gt-104/matyan-core
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: teal
+      toggle:
+        icon: material/lightbulb
+        name: Switch to dark mode
+    - scheme: slate
+      primary: teal
+      toggle:
+        icon: material/lightbulb-outline
+        name: Switch to light mode
+  features:
+    - navigation.sections
+    - navigation.footer
+
+plugins:
+  - search:
+      separator: '[\s\u200b\-_,:!=\[\]()"`/]+|\.(?!\d)|&[lg]t;|(?!\b)(?=[A-Z][a-z])'
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [extra/matyan-client/src, extra/matyan-backend/src]
+          options:
+            docstring_style: sphinx
+            show_source: false
+
+markdown_extensions:
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - admonition
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/4gt-104/matyan-core
+
+extra_css:
+  - stylesheets/extra.css
+
+nav:
+  - Introduction: index.md
+  - Getting started: getting-started.md
+  - Quick Start:
+    - Integrations: quick-start/integrations.md
+    - Supported types: quick-start/supported-types.md
+    - Convert data: quick-start/convert-data.md
+    - Next steps: quick-start/next-steps.md
+  - Matyan UI:
+    - Overview: ui/overview.md
+  - Using Matyan:
+    - Manage runs: using/manage-runs.md
+    - Configure runs: using/configure-runs.md
+    - Search and query:
+      - Query runs: using/query-runs.md
+      - Search (MatyanQL): using/search.md
+    - Remote tracking: using/remote-tracking.md
+    - Logging: using/logging.md
+    - Artifacts: using/artifacts.md
+    - Backups and restore: using/backups-and-restore.md
+  - Understanding Matyan:
+    - Overview: understanding/overview.md
+    - Concepts: understanding/concepts.md
+    - Data storage: understanding/data-storage.md
+    - Search and MatyanQL: understanding/search-and-matyanql.md
+    - Tombstones: understanding/tombstones.md
+    - Public API and versioning: understanding/public-api-and-versioning.md
+  - Architecture: architecture.md
+  - Deployment:
+    - Production (Helm): deployment/production.md
+    - Periodic cleanup jobs (CronJobs): deployment/periodic-cleanup-jobs.md
+  - Advanced:
+    - Overview: advanced/index.md
+    - Backend: advanced/backend.md
+    - Frontier: advanced/frontier.md
+    - Workers: advanced/workers.md
+    - FoundationDB: advanced/foundationdb.md
+    - Kafka: advanced/kafka.md
+    - S3 and blobs: advanced/s3-blobs.md
+    - UI: advanced/ui.md
+    - Client SDK: advanced/client-sdk.md
+  - API: api.md
+  - References:
+    - Glossary: glossary.md
+    - CLI: refs/cli.md
+    - SDK: refs/sdk.md
+    - Client API (matyan-client): refs/api-client.md
+    - Backend REST API: refs/api-backend.md
+    - Environment variables: refs/env-variables.md
+  - Contributing:
+    - Overview: contributing.md
+    - Code style: contributing/code-style.md
+    - Testing: contributing/testing.md

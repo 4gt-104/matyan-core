@@ -1,0 +1,77 @@
+---
+description: Python docstring format and verbosity — Sphinx style, verbose docstrings for all public API
+alwaysApply: true
+---
+
+# Docstrings
+
+## Format: Sphinx
+
+All docstrings in the project must be written in **Sphinx format**. Use reStructuredText directives and fields so that [mkdocstrings](https://mkdocstrings.github.io/) and Sphinx-style tooling can render them correctly in the API reference.
+
+- **One-line summary** — First line is a short, imperative summary (no period at the end).
+- **Blank line** — Separate the summary from the body.
+- **Body** — Optional longer description: behavior, caveats, usage notes.
+- **Sections** — Use `:param name:`, `:returns:`, `:raises Exception:`, and optionally `:example:` (or `Examples:` with literal blocks). **Do not** use `:type name:` or `:rtype:` — types are already declared in the signature and must not be duplicated in the docstring.
+
+### Example (function)
+
+```python
+def create_run(db: Database, experiment_id: str | None = None) -> str:
+    """Create a new run and return its hash.
+
+    Writes initial metadata to FoundationDB and updates Tier 1 indexes.
+    The run is created in active state; call ``update_run_meta(..., active=False)`` to finalize.
+
+    :param db: FoundationDB database (transaction or tenant).
+    :param experiment_id: Optional experiment UUID to associate with the run.
+    :returns: The run hash (hex string) of the new run.
+    :raises ValueError: If experiment_id is not a valid UUID.
+    """
+```
+
+### Example (class)
+
+```python
+class Run:
+    """A single experiment run.
+
+    Tracks metrics, hyperparameters, and artifacts. Data is sent to the frontier
+    via WebSocket (ingestion) and to the backend via REST (metadata). Use
+    :meth:`track` for metrics and :meth:`close` when the run is finished.
+
+    :param run_hash: Existing run hash to resume, or None to create a new run.
+    :param repo: Backend URL (default from ``MATYAN_BACKEND_URL``).
+    :param read_only: If True, no tracking or writes.
+    """
+
+    def track(self, value: float, name: str, step: int, context: dict | None = None) -> None:
+        """Log a scalar or object for the given metric name and step.
+
+        :param value: Metric value (float) or a custom object (Image, Text, etc.).
+        :param name: Metric or sequence name.
+        :param step: Step index.
+        :param context: Optional context dict to distinguish sequences (e.g. subset).
+        """
+```
+
+## Verbosity: all public API must be documented
+
+Every **function**, **class**, **method**, **property**, and **module** that is part of the public API must have a **verbose docstring**.
+
+- **Functions / methods** — Summary plus `:param` for each argument, `:returns`, and `:raises` when the function can raise. For non-trivial behavior, add a short body. Do not add `:type` or `:rtype`; types are in the signature.
+- **Classes** — Summary of the type’s role, then `:param` for `__init__` arguments (or document ``__init__`` explicitly). Document important attributes and the intended usage.
+- **Modules** — Module-level docstring describing the module’s purpose and main exports (e.g. “Run and Repo API for experiment tracking.”).
+- **Properties** — One-line summary is acceptable when the meaning is obvious; otherwise add a sentence on semantics and type.
+
+Avoid stub docstrings like “Do the thing.” or “No-op.” unless the API is intentionally minimal; prefer a sentence that explains *what* the API does and *when* to use it.
+
+## Summary
+
+| Item              | Requirement |
+|-------------------|-------------|
+| **Format**        | Sphinx (reStructuredText, `:param`, `:returns`, `:raises`; no `:type`/`:rtype` — types are in the signature). |
+| **Coverage**      | All public functions, classes, methods, properties, and modules. |
+| **Verbosity**     | Descriptive summary + parameters/returns/raises; add body text for non-obvious behavior. |
+
+These conventions keep the API reference (e.g. docs generated with mkdocstrings) consistent and useful.
