@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - "v*"
+      - "[0-9]*"
 
 jobs:
   publish:
@@ -37,7 +38,7 @@ jobs:
           IMG_FRONTIER=$(python3 -c "import yaml; d=yaml.safe_load(open('release.yaml')); print(d['images']['frontier'])")
           IMG_UI=$(python3 -c "import yaml; d=yaml.safe_load(open('release.yaml')); print(d['images']['ui'])")
           CHART_VERSION=$(python3 -c "import yaml; d=yaml.safe_load(open('release.yaml')); print(d['helm']['version'])")
-          APP_VERSION="${GITHUB_REF_NAME#v}"   # v0.3.0 → 0.3.0
+          APP_VERSION="${GITHUB_REF_NAME#v}"   # v0.3.0 → 0.3.0, 0.3.0 → 0.3.0
 
           echo "img_backend=$IMG_BACKEND"   >> "$GITHUB_OUTPUT"
           echo "img_frontier=$IMG_FRONTIER" >> "$GITHUB_OUTPUT"
