@@ -161,5 +161,5 @@ jobs:
             echo "No Helm changes to commit."
           else
             git commit -m "Publish Helm chart $CHART_VERSION (app $APP_VERSION)"
-            git push
+            git push origin HEAD:main
           fi
