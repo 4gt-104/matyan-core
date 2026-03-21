@@ -23,8 +23,12 @@ services:
     depends_on:
       fdb-coordinator:
         condition: service_started
-    entrypoint: ["fdbcli"]
-    command: ["--exec", "configure new single memory ; status"]
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        fdbcli --exec "status" 2>&1 | grep -q "The database is available" \
+          && echo "FDB already configured, skipping init" \
+          || fdbcli --exec "configure new single memory ; status"
     restart: "no"
     network_mode: "host"
     volumes:
@@ -227,32 +231,32 @@ services:
       - ./fdb.cluster:/etc/foundationdb/fdb.cluster:ro
     restart: unless-stopped
 
-  # ui:
-    # image: docker.io/288888/matyan-ui:latest
-  #   build:
-  #     context: ../extra
-  #     dockerfile: matyan-ui/Dockerfile.dev
-  #     platforms:
-  #       - "${DOCKER_PLATFORM}"
-  #   network_mode: "host"
-  #   depends_on:
-  #     backend:
-  #       condition: service_healthy
-  #   environment:
-  #     AIM_S_UI_BASE_PATH: ""
-  #   restart: unless-stopped
-  #   healthcheck:
-  #     test:
-  #       [
-  #         "CMD",
-  #         "python",
-  #         "-c",
-  #         "import urllib.request; urllib.request.urlopen('http://localhost:8000/')",
-  #       ]
-  #     interval: 10s
-  #     timeout: 5s
-  #     retries: 5
-  #     start_period: 5s
+  ui:
+    image: docker.io/288888/matyan-ui:latest
+    build:
+      context: ../extra
+      dockerfile: matyan-ui/Dockerfile.dev
+      platforms:
+        - "${DOCKER_PLATFORM}"
+    network_mode: "host"
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      MATYAN_UI_BASE_PATH: ""
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/')",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
 
 volumes:
   rustfs-data-0:
