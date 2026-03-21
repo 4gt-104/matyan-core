@@ -747,7 +747,7 @@ ui:
   image:
     repository: docker.io/288888/matyan-ui
     # -- Image tag.
-    tag: "0.3.0"
+    tag: "0.3.1"
     pullPolicy: IfNotPresent
 
   # -- Kubernetes Service configuration for the UI.
