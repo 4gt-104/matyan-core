@@ -115,6 +115,9 @@ jobs:
 
       # ── Docs publishing via mike ───────────────────────────────────────────
 
+      - name: Initialize source submodules for mkdocstrings
+        run: git submodule update --init extra/matyan-backend extra/matyan-client
+
       - name: Set up Python + uv
         uses: astral-sh/setup-uv@v5
         with:
