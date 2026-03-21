@@ -135,6 +135,7 @@ jobs:
             --config-file ../mkdocs.yml \
             --branch main \
             --deploy-prefix matyan-core \
+            --update-aliases \
             --push \
             "$APP_VERSION" stable
 
