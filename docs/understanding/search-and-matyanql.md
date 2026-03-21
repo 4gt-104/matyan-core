@@ -97,21 +97,21 @@ MatyanQL is evaluated with [RestrictedPython](https://github.com/zopefoundation/
 When you submit a MatyanQL string (e.g. in the Search box or via the run/metric search API), the backend runs a fixed pipeline:
 
 1. **String normalization** — Optional `SELECT ... IF <expr>` prefix is stripped; the result is wrapped in parentheses. Empty input is treated as "show non-archived runs."
-2. **Default predicate** — Unless the query already mentions `run.is_archived` or `run.archived`, the backend **AND**s the expression with `run.is_archived == False` so archived runs are hidden by default.
-3. **Parse** — The string is parsed into a Python **AST** (abstract syntax tree) with `compile(..., mode="eval")`. Invalid syntax raises `SyntaxError` (e.g. 400 to the UI).
-4. **AST rewrites** — Two rewrites run on the AST:
-   - **datetime(...)** — Replaced with a numeric UTC timestamp using the request's timezone offset (`x_timezone_offset`), so e.g. `datetime(2026, 3, 10) <= run.created_at` becomes a float comparison.
-   - **Chained comparisons** — `a <= b < c` is split into `(a <= b) and (b < c)` so the planner can match each half against index patterns.
-5. **Planner** — The prepared AST is passed to **plan_query(db, prepared_ast)**. The planner walks the AST and matches **index-backed predicates** (experiment, tag, archived, active, hparams, metric.name). It returns:
-   - **PlanResult(candidates, exact, trace_names)**
-   - `candidates`: list of run hashes from index(es), or **None** for "no index use" (full scan).
-   - `exact`: if True, every candidate satisfies the full query; if False, candidates are a **superset** and the backend must run **RestrictedPythonQuery.check()** on each.
-   - `trace_names`: when the query has `metric.name == "..."`, the set of metric names to stream; **None** means "all traces."
-6. **Execution** — Depending on the endpoint (run search, metric search, or custom-object search):
-   - If **candidates** is a list and **exact** is True: iterate only those hashes (no per-run filter).
-   - If **candidates** is a list and **exact** is False: iterate candidates, load run (and optionally sequence) data, and call **q.check(run=..., metric=...)** (or the right namespace) to filter.
-   - If **candidates** is **None**: **lazy path** — iterate **all** run hashes from the **created_at** index (no predicate index), load each run (and sequences if needed), and call **q.check()** for each. This is a full scan.
-7. **Security** — The expression is compiled with **RestrictedPython**: only a safe subset of Python is allowed (no file access, no arbitrary imports). The only allowed namespaces are `run`, `metric`, and the custom-object names (`images`, `audios`, `distributions`, `figures`, `texts`), plus builtins like `datetime`, `min`, `max`, `sorted`, etc.
+1. **Default predicate** — Unless the query already mentions `run.is_archived` or `run.archived`, the backend **AND**s the expression with `run.is_archived == False` so archived runs are hidden by default.
+1. **Parse** — The string is parsed into a Python **AST** (abstract syntax tree) with `compile(..., mode="eval")`. Invalid syntax raises `SyntaxError` (e.g. 400 to the UI).
+1. **AST rewrites** — Two rewrites run on the AST:
+    - **datetime(...)** — Replaced with a numeric UTC timestamp using the request's timezone offset (`x_timezone_offset`), so e.g. `datetime(2026, 3, 10) <= run.created_at` becomes a float comparison.
+    - **Chained comparisons** — `a <= b < c` is split into `(a <= b) and (b < c)` so the planner can match each half against index patterns.
+1. **Planner** — The prepared AST is passed to **plan_query(db, prepared_ast)**. The planner walks the AST and matches **index-backed predicates** (experiment, tag, archived, active, hparams, metric.name). It returns:
+    - **PlanResult(candidates, exact, trace_names)**
+        - `candidates`: list of run hashes from index(es), or **None** for "no index use" (full scan).
+        - `exact`: if True, every candidate satisfies the full query; if False, candidates are a **superset** and the backend must run **RestrictedPythonQuery.check()** on each.
+        - `trace_names`: when the query has `metric.name == "..."`, the set of metric names to stream; **None** means "all traces."
+1. **Execution** — Depending on the endpoint (run search, metric search, or custom-object search):
+    - If **candidates** is a list and **exact** is True: iterate only those hashes (no per-run filter).
+    - If **candidates** is a list and **exact** is False: iterate candidates, load run (and optionally sequence) data, and call **q.check(run=..., metric=...)** (or the right namespace) to filter.
+    - If **candidates** is **None**: **lazy path** — iterate **all** run hashes from the **created_at** index (no predicate index), load each run (and sequences if needed), and call **q.check()** for each. This is a full scan.
+1. **Security** — The expression is compiled with **RestrictedPython**: only a safe subset of Python is allowed (no file access, no arbitrary imports). The only allowed namespaces are `run`, `metric`, and the custom-object names (`images`, `audios`, `distributions`, `figures`, `texts`), plus builtins like `datetime`, `min`, `max`, `sorted`, etc.
 
 ### Namespaces and which tab uses them
 

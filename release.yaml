@@ -1,0 +1,15 @@
+# Release manifest — update all fields and commit together with Chart.yaml and values.yaml,
+# then create a git tag. The CI workflow reads this file on tag push to publish the Helm
+# chart and versioned docs. The appVersion in Chart.yaml is set by CI from the git tag.
+
+images:
+  # Image tag to use for matyan-backend (also applied to ingestionWorker and controlWorker).
+  backend: "0.2.1"
+  # Image tag to use for matyan-frontier.
+  frontier: "0.2.1"
+  # Image tag to use for matyan-ui.
+  ui: "0.3.0"
+
+helm:
+  # Helm chart version (Chart.yaml .version). Bump when the chart structure changes.
+  version: "0.1.0"

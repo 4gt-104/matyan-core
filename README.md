@@ -1,6 +1,6 @@
 # Matyan Core
 
-Monorepo for **Matyan**, an experiment-tracking stack forked from [Aim](https://github.com/aimhubio/aim). The backend is reimplemented (FastAPI, FoundationDB, Kafka, S3); the original Aim frontend (React UI) is preserved and served separately. Training clients log via the **frontier** (WebSocket + presigned S3); the UI and control operations talk to the **backend** REST API.
+Monorepo for **Matyan** (մատյան, *book of records* in Armenian), an experiment-tracking stack forked from [Aim](https://github.com/aimhubio/aim). The backend is reimplemented (FastAPI, FoundationDB, Kafka, S3); the original Aim frontend (React UI) is preserved and served separately. Training clients log via the **frontier** (WebSocket + presigned S3); the UI and control operations talk to the **backend** REST API.
 
 ## Repo layout
 
@@ -37,7 +37,6 @@ All app services are stateless and horizontally scalable. See [.cursor/rules/mat
 2. **Full stack via Docker** (if services are defined in `docker-compose.yml`):
 
    ```bash
-   docker compose build
    docker compose up -d
    ```
 

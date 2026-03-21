@@ -1,0 +1,161 @@
+name: Publish
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  publish:
+    name: Publish Helm chart and docs
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository with gh-pages submodule
+        uses: actions/checkout@v4
+        with:
+          submodules: false   # checked out manually below to inject credentials
+          fetch-depth: 0      # full history needed for mike version detection
+
+      - name: Configure gh-pages submodule with PAT
+        run: |
+          git submodule update --init gh-pages
+          git -C gh-pages remote set-url origin \
+            "https://x-access-token:${{ secrets.GH_PAGES_PAT }}@github.com/4gt-104/4gt-104.github.io.git"
+
+      - name: Configure git identity
+        run: |
+          git config --global user.email "ci@matyan"
+          git config --global user.name "Matyan CI"
+
+      # ── Read release manifest ──────────────────────────────────────────────
+
+      - name: Parse release.yaml
+        id: release
+        run: |
+          IMG_BACKEND=$(python3 -c "import yaml; d=yaml.safe_load(open('release.yaml')); print(d['images']['backend'])")
+          IMG_FRONTIER=$(python3 -c "import yaml; d=yaml.safe_load(open('release.yaml')); print(d['images']['frontier'])")
+          IMG_UI=$(python3 -c "import yaml; d=yaml.safe_load(open('release.yaml')); print(d['images']['ui'])")
+          CHART_VERSION=$(python3 -c "import yaml; d=yaml.safe_load(open('release.yaml')); print(d['helm']['version'])")
+          APP_VERSION="${GITHUB_REF_NAME#v}"   # v0.3.0 → 0.3.0
+
+          echo "img_backend=$IMG_BACKEND"   >> "$GITHUB_OUTPUT"
+          echo "img_frontier=$IMG_FRONTIER" >> "$GITHUB_OUTPUT"
+          echo "img_ui=$IMG_UI"             >> "$GITHUB_OUTPUT"
+          echo "chart_version=$CHART_VERSION" >> "$GITHUB_OUTPUT"
+          echo "app_version=$APP_VERSION"   >> "$GITHUB_OUTPUT"
+
+          echo "Resolved versions:"
+          echo "  backend image  : $IMG_BACKEND"
+          echo "  frontier image : $IMG_FRONTIER"
+          echo "  ui image       : $IMG_UI"
+          echo "  chart version  : $CHART_VERSION"
+          echo "  app version    : $APP_VERSION"
+
+      # ── Patch Chart.yaml and values.yaml ──────────────────────────────────
+
+      - name: Install yq
+        uses: mikefarah/yq@v4.45.1
+
+      - name: Patch Chart.yaml
+        env:
+          CHART_VERSION: ${{ steps.release.outputs.chart_version }}
+          APP_VERSION: ${{ steps.release.outputs.app_version }}
+        run: |
+          yq -i ".version = \"$CHART_VERSION\"" deploy/helm/matyan/Chart.yaml
+          yq -i ".appVersion = \"$APP_VERSION\"" deploy/helm/matyan/Chart.yaml
+
+      - name: Patch values.yaml image tags
+        env:
+          IMG_BACKEND: ${{ steps.release.outputs.img_backend }}
+          IMG_FRONTIER: ${{ steps.release.outputs.img_frontier }}
+          IMG_UI: ${{ steps.release.outputs.img_ui }}
+        run: |
+          yq -i ".backend.image.tag = \"$IMG_BACKEND\""         deploy/helm/matyan/values.yaml
+          yq -i ".ingestionWorker.image.tag = \"$IMG_BACKEND\"" deploy/helm/matyan/values.yaml
+          yq -i ".controlWorker.image.tag = \"$IMG_BACKEND\""   deploy/helm/matyan/values.yaml
+          yq -i ".frontier.image.tag = \"$IMG_FRONTIER\""       deploy/helm/matyan/values.yaml
+          yq -i ".ui.image.tag = \"$IMG_UI\""                   deploy/helm/matyan/values.yaml
+
+      # ── Helm chart packaging ───────────────────────────────────────────────
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+
+      - name: Add Helm chart repositories
+        run: |
+          helm repo add bitnami https://charts.bitnami.com/bitnami
+          helm repo add rustfs https://charts.rustfs.com
+          helm repo update
+
+      - name: Update Helm chart dependencies
+        working-directory: deploy/helm/matyan
+        env:
+          HELM_CACHE_HOME: ${{ github.workspace }}/.helm/cache
+          HELM_REPOSITORY_CACHE: ${{ github.workspace }}/.helm/repository
+        run: helm dependency update
+
+      - name: Package Helm chart
+        env:
+          HELM_CACHE_HOME: ${{ github.workspace }}/.helm/cache
+          HELM_REPOSITORY_CACHE: ${{ github.workspace }}/.helm/repository
+        run: |
+          mkdir -p gh-pages/helm
+          helm package deploy/helm/matyan --destination gh-pages/helm/
+
+      - name: Update Helm repo index
+        run: |
+          cd gh-pages/helm
+          if [[ -f index.yaml ]]; then
+            helm repo index . --url "https://4gt-104.github.io/matyan-core/helm" --merge index.yaml
+          else
+            helm repo index . --url "https://4gt-104.github.io/matyan-core/helm"
+          fi
+
+      # ── Docs publishing via mike ───────────────────────────────────────────
+
+      - name: Set up Python + uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install docs dependencies
+        run: uv sync --group docs
+
+      - name: Deploy docs version with mike
+        env:
+          APP_VERSION: ${{ steps.release.outputs.app_version }}
+        working-directory: gh-pages
+        run: |
+          uv run --project .. mike deploy \
+            --config-file ../mkdocs.yml \
+            --branch main \
+            --deploy-prefix matyan-core \
+            --push \
+            "$APP_VERSION" stable
+
+      - name: Set mike default to stable
+        working-directory: gh-pages
+        run: |
+          uv run --project .. mike set-default \
+            --config-file ../mkdocs.yml \
+            --branch main \
+            --deploy-prefix matyan-core \
+            --push \
+            stable
+
+      # ── Commit and push Helm changes to gh-pages ──────────────────────────
+
+      - name: Commit and push Helm chart to gh-pages
+        env:
+          CHART_VERSION: ${{ steps.release.outputs.chart_version }}
+          APP_VERSION: ${{ steps.release.outputs.app_version }}
+        working-directory: gh-pages
+        run: |
+          git add helm/
+          if git diff --cached --quiet; then
+            echo "No Helm changes to commit."
+          else
+            git commit -m "Publish Helm chart $CHART_VERSION (app $APP_VERSION)"
+            git push
+          fi

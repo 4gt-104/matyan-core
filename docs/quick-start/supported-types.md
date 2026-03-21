@@ -91,7 +91,3 @@ Matplotlib figures are also supported (converted via Plotly under the hood).
 ## Artifacts
 
 Use `run.log_artifact(path)` or `run.log_artifacts(directory)` to log files. Matyan stores artifact metadata and uses presigned S3 URLs (via the frontier) for blob uploads. See [Artifacts](../using/artifacts.md).
-
-## Note on third-party plugins
-
-Hub dataset, DVC metadata, and Hugging Face datasets plugins may or may not be present in `matyan_client`. Use the standard Run params and the types above; for custom metadata, store dicts or configs in `run["key"]`.

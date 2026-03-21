@@ -1,0 +1,10 @@
+repos:
+  - repo: local
+    hooks:
+      - id: check-release-consistency
+        name: Check release.yaml matches Chart.yaml and values.yaml
+        language: python
+        entry: python scripts/check_release_consistency.py
+        pass_filenames: false
+        stages: [pre-commit]
+        additional_dependencies: [pyyaml]

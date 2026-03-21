@@ -23,30 +23,29 @@ Integration tests run against **real** services: backend, frontier, Kafka, FDB, 
 1. Start services (e.g. with Docker Compose):
 
    ```bash
-   docker compose up -d
+   ./dev/compose-cluster.sh up -d
    ```
 
-2. Wait until the backend and frontier are healthy (e.g. `GET http://localhost:53800/api/v1/rest/projects/` and `GET http://localhost:53801/docs` return 200).
+2. Wait until the backend and frontier are healthy (e.g. `GET http://localhost:53800/health/ready/` and `GET http://localhost:53801/health/ready/` return 200).
 
 ### Running integration tests
 
-From the **matyan-backend** directory, with the **integration** dependency group (so that `matyan-client` and `matyan-frontier` are available):
+From the **matyan-core** directory, with the **integration** dependency group (so that `matyan-client`, `matyan-backend` and `matyan-frontier` are available):
 
 ```bash
-cd extra/matyan-backend
 ./dev/install_all_components.sh
-python3 -m pytest ../../tests/integration -v
+python3 -m pytest tests/integration -v
 ```
 
 To run only tests marked as integration (when using the same command from a directory that collects more tests):
 
 ```bash
-python3 -m pytest ../../tests/integration -m integration -v
+python3 -m tests/integration -m integration -v
 ```
 
 ### Behavior when services are down
 
-If the backend, frontier, or Kafka are not reachable, integration tests **skip** instead of failing. So you can run the same test tree in CI (with `docker compose up -d`) or locally without compose; tests that need a service will skip when it is unavailable.
+If the backend, frontier, or Kafka are not reachable, integration tests **skip** instead of failing. So you can run the same test tree in CI (with `./dev/compose-cluster.sh up -d`) or locally without compose; tests that need a service will skip when it is unavailable.
 
 ### What is covered
 

@@ -13,16 +13,16 @@ A backup is a directory (or a `.tar.gz` archive of that directory) with:
 - **manifest.json** — Format version, run count, run hashes, entity counts, blob stats.
 - **entities.jsonl** — One JSON object per line: experiments, tags, and other structured entities.
 - **runs/** — One subdirectory per run hash, each containing:
-  - **run.json** — Run metadata.
-  - **attrs.json** — Run attributes (e.g. hyperparameters).
-  - **sequences.jsonl** — Sequence records (metrics, custom objects, logs, etc.).
-  - **blobs/** — Optional; downloaded S3 artifacts for that run (when backup included blobs).
+    - **run.json** — Run metadata.
+    - **attrs.json** — Run attributes (e.g. hyperparameters).
+    - **sequences.jsonl** — Sequence records (metrics, custom objects, logs, etc.).
+    - **blobs/** — Optional; downloaded S3 artifacts for that run (when backup included blobs).
 
 The same format is produced by:
 
 - **matyan-backend backup** — Export from FoundationDB and S3.
-- **matyan backup** — Export via the backend REST API (no FDB/S3 access needed).
-- **matyan convert tensorboard** — Conversion from TensorBoard event logs (see [Convert data](../quick-start/convert-data.md)).
+- **matyan-client backup** — Export via the backend REST API (no FDB/S3 access needed).
+- **matyan-client convert tensorboard** — Conversion from TensorBoard event logs (see [Convert data](../quick-start/convert-data.md)).
 
 ## Creating a backup (backend)
 
@@ -50,13 +50,13 @@ The backend must be configured with the same FDB cluster and S3 bucket you use i
 
 ## Creating a backup (client)
 
-**matyan backup** (from **matyan-client**) reads all data through the backend REST API and writes the same portable backup format. No direct access to FoundationDB or S3 is required — only a running matyan-backend instance.
+**matyan-client backup** (from **matyan-client**) reads all data through the backend REST API and writes the same portable backup format. No direct access to FoundationDB or S3 is required — only a running matyan-backend instance.
 
 - **Use when:** You do not have direct access to FDB/S3, or you want to create a backup from a remote client machine.
 - **Requires:** Backend running and accessible over HTTP. Blobs are downloaded via the blob-batch API endpoint.
 
 ```bash
-matyan backup <output_path> [options]
+matyan-client backup <output_path> [options]
 ```
 
 | Option | Description |
@@ -71,10 +71,10 @@ matyan backup <output_path> [options]
 Example:
 
 ```bash
-cd extra/matyan-client && uv run matyan backup /tmp/backups --experiment my_exp --compress
+matyan-client backup /tmp/backups --experiment my_exp --compress
 ```
 
-The output is identical to `matyan-backend backup` and can be restored with either `matyan-backend restore` or `matyan restore-reingest`.
+The output is identical to `matyan-backend backup` and can be restored with either `matyan-backend restore` or `matyan-client restore-reingest`.
 
 ## Restore: two modes
 
@@ -101,13 +101,13 @@ If `backup_path` is a `.tar.gz` file, it is extracted to a temporary directory f
 
 ### Client restore (reingest)
 
-**matyan restore-reingest** (from **matyan-client**) reads the backup and **replays** data through the normal ingestion path: REST API for run/entity creation and metadata, and frontier WebSocket (and presigned S3 for blobs) for sequence data. The same pipeline as live training is used.
+**matyan-client restore-reingest** reads the backup and **replays** data through the normal ingestion path: REST API for run/entity creation and metadata, and frontier WebSocket (and presigned S3 for blobs) for sequence data. The same pipeline as live training is used.
 
 - **Use when:** You do not have direct access to FDB (e.g. restoring from a client machine into a remote Matyan deployment), or you want to restore into a different environment using only the public API.
 - **Requires:** Backend and frontier running; ingestion workers must be running to process the reingested data.
 
 ```bash
-matyan restore-reingest <backup_path> [options]
+matyan-client restore-reingest <backup_path> [options]
 ```
 
 | Option | Description |
@@ -121,7 +121,7 @@ matyan restore-reingest <backup_path> [options]
 Example:
 
 ```bash
-cd extra/matyan-client && uv run matyan restore-reingest /path/to/matyan-backup-20250101-120000.tar.gz
+matyan-client restore-reingest /path/to/matyan-backup-20250101-120000.tar.gz
 ```
 
 ## Summary
@@ -129,8 +129,8 @@ cd extra/matyan-client && uv run matyan restore-reingest /path/to/matyan-backup-
 | Action | Tool | Where it runs |
 |--------|------|----------------|
 | Create backup (backend) | **matyan-backend backup** | On a host with FDB + S3 access |
-| Create backup (client) | **matyan backup** | Anywhere; uses backend REST API |
+| Create backup (client) | **matyan-client backup** | Anywhere; uses backend REST API |
 | Restore (direct) | **matyan-backend restore** | On a host with FDB + S3 access |
-| Restore (reingest) | **matyan restore-reingest** | Anywhere; uses backend + frontier like a normal client |
+| Restore (reingest) | **matyan-client restore-reingest** | Anywhere; uses backend + frontier like a normal client |
 
-For TensorBoard migration: use **matyan convert tensorboard** to produce a backup, then **matyan restore-reingest** (or **matyan-backend restore** if you have backend access) to load it into Matyan.
+For TensorBoard migration: use **matyan-client convert tensorboard** to produce a backup, then **matyan-client restore-reingest** (or **matyan-backend restore** if you have backend access) to load it into Matyan.

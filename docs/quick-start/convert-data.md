@@ -10,10 +10,10 @@ You may have existing experiment logs from TensorBoard, MLflow, or Weights & Bia
 
 TensorBoard conversion lives in **matyan-client**. It reads TensorBoard event logs and produces a **Matyan backup archive** (same format as backend backups). You can then restore that archive with the client or backend (see [Backups and restore](../using/backups-and-restore.md)).
 
-**CLI (from matyan-client):**
+**CLI:**
 
 ```bash
-matyan convert tensorboard <input_dir> <output_path> [--experiment NAME] [--compress] [--workers N]
+matyan-client convert tensorboard <input_dir> <output_path> [--experiment NAME] [--compress] [--workers N]
 ```
 
 - **input_dir** — Directory containing TensorBoard run directories (each with event files).
@@ -22,18 +22,13 @@ matyan convert tensorboard <input_dir> <output_path> [--experiment NAME] [--comp
 - **--compress** — Produce a single `.tar.gz` archive.
 - **--workers** — Number of parallel workers (default: CPU count).
 
-After conversion, restore the backup with `matyan restore-reingest` (client) or `matyan-backend restore` (backend), as described in [Backups and restore](../using/backups-and-restore.md).
+After conversion, restore the backup with `matyan-client restore-reingest` (client) or `matyan-backend restore` (backend), as described in [Backups and restore](../using/backups-and-restore.md).
 
 For image and audio events, the converter uses `tbparse`; TensorFlow is optional (install with `uv sync --extra convert` in matyan-client if you need image/audio support).
 
 ## MLflow / Weights & Biases
 
-There is no built-in `matyan convert mlflow` or `matyan convert wandb`. Export your runs (metrics, params, artifacts) and either:
-
-- Write a Python script that uses `matyan_client.Run` and `track()` to recreate runs, or
-- Produce a Matyan backup directory (manifest + runs + entities) and use the same restore tools.
-
-For large migrations, batching and async ingestion (via the frontier) will help.
+There is no built-in `matyan-client convert mlflow` or `matyan-client convert wandb` yet. If you need this, please [open an issue on GitHub](https://github.com/4gt-104/matyan-client/issues) (check for an existing one first) so we can track demand and prioritize.
 
 ## Other options
 

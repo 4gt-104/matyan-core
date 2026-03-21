@@ -8,7 +8,7 @@ The Matyan UI is a React app that talks to the **Matyan backend**. You get explo
 
 ## How to open the UI
 
-Point your browser at the **backend** URL (e.g. `http://localhost:53800` when running with Docker Compose). The backend may serve the UI or redirect to a separate UI deployment; see [Getting started](../getting-started.md) for your setup.
+Point your browser at the **UI** URL — default port is **8000** (e.g. `http://localhost:8000` when running with Docker Compose). The UI is served as a separate service from the backend; see [Getting started](../getting-started.md) for your setup.
 
 ## Main features
 

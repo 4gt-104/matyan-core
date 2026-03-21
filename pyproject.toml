@@ -31,12 +31,13 @@ Repository = "https://github.com/4gt-104/matyan-core"
 Documentation = "https://4gt-104.github.io/matyan-core/"
 
 [dependency-groups]
-dev = ["pytest~=8.0"]
+dev = ["pytest~=8.0", "pre-commit~=4.0"]
 docs = [
     "mkdocs-material~=9.7",
     "pymdown-extensions~=10.21",
     "mkdocs~=1.6",
     "mkdocstrings[python]~=1.0",
+    "mike~=2.1",
 ]
 [tool.pytest.ini_options]
 markers = [

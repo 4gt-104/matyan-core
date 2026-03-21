@@ -111,6 +111,7 @@ services:
   # --- Application ---
 
   backend:
+    image: docker.io/288888/matyan-backend:latest
     build:
       context: ../extra
       dockerfile: matyan-backend/Dockerfile.dev
@@ -144,6 +145,7 @@ services:
       start_period: 10s
 
   frontier:
+    image: docker.io/288888/matyan-frontier:latest
     build:
       context: ../extra
       dockerfile: matyan-frontier/Dockerfile.dev
@@ -170,6 +172,7 @@ services:
       start_period: 10s
 
   ingestion-worker:
+    image: docker.io/288888/matyan-backend:latest
     build:
       context: ../extra
       dockerfile: matyan-backend/Dockerfile.dev
@@ -197,6 +200,7 @@ services:
     restart: unless-stopped
 
   control-worker:
+    image: docker.io/288888/matyan-backend:latest
     build:
       context: ../extra
       dockerfile: matyan-backend/Dockerfile.dev
@@ -223,31 +227,32 @@ services:
       - ./fdb.cluster:/etc/foundationdb/fdb.cluster:ro
     restart: unless-stopped
 
-  ui:
-    build:
-      context: ../extra
-      dockerfile: matyan-ui/Dockerfile.dev
-      platforms:
-        - "${DOCKER_PLATFORM}"
-    network_mode: "host"
-    depends_on:
-      backend:
-        condition: service_healthy
-    environment:
-      AIM_S_UI_BASE_PATH: ""
-    restart: unless-stopped
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "python",
-          "-c",
-          "import urllib.request; urllib.request.urlopen('http://localhost:8000/')",
-        ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 5s
+  # ui:
+    # image: docker.io/288888/matyan-ui:latest
+  #   build:
+  #     context: ../extra
+  #     dockerfile: matyan-ui/Dockerfile.dev
+  #     platforms:
+  #       - "${DOCKER_PLATFORM}"
+  #   network_mode: "host"
+  #   depends_on:
+  #     backend:
+  #       condition: service_healthy
+  #   environment:
+  #     AIM_S_UI_BASE_PATH: ""
+  #   restart: unless-stopped
+  #   healthcheck:
+  #     test:
+  #       [
+  #         "CMD",
+  #         "python",
+  #         "-c",
+  #         "import urllib.request; urllib.request.urlopen('http://localhost:8000/')",
+  #       ]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+  #     start_period: 5s
 
 volumes:
   rustfs-data-0:

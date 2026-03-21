@@ -66,4 +66,18 @@ Indexes and metadata are maintained by the backend and workers; there is no sepa
 
 ## Backup and restore
 
-Data lives in FoundationDB and S3 on the server. You can create portable backups with **matyan-backend backup** and restore them with **matyan-backend restore** (direct into FDB + S3) or **matyan restore-reingest** (replay through the ingestion pipeline). See [Backups and restore](backups-and-restore.md) for the full workflow.
+Data lives in FoundationDB and S3 on the server. There are two ways to create a backup:
+
+- **`matyan-client backup`** (client CLI, no server access needed) — exports runs via the backend REST API. Supports filtering by run hashes, experiment, or creation date; optionally downloads blobs; can produce a `.tar.gz` archive.
+
+    ```bash
+    matyan-client backup ./backups/                          # all runs
+    matyan-client backup ./backups/ --experiment baseline    # one experiment
+    matyan-client backup ./backups/ --since 2024-01-01       # runs created after a date
+    matyan-client backup ./backups/ --compress               # produce .tar.gz
+    matyan-client backup ./backups/ --no-blobs               # skip S3 blobs
+    ```
+
+- **`matyan-backend backup`** — server-side backup with direct FDB access (requires access to the server).
+
+To restore, use **`matyan-client restore-reingest`** (replay through the ingestion pipeline, works with backups from either source) or **`matyan-backend restore`** (direct write into FDB + S3). See [Backups and restore](backups-and-restore.md) for the full workflow.

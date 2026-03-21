@@ -69,14 +69,14 @@ The client provides CLI commands for restore and conversion.
 
 | Command | Description |
 |--------|-------------|
-| **matyan restore-reingest** | Restore a backup by replaying through the ingestion pipeline (REST API + frontier). Options: `--backend-url`, `--frontier-url`, `--skip-entities`, `--skip-blobs`, `--dry-run`. See [Backups and restore](../using/backups-and-restore.md). |
-| **matyan convert tensorboard** | Convert TensorBoard event logs to a Matyan backup archive. Arguments: `input_dir`, `output_path`. Options: `--experiment`, `--compress`, `--workers`. See [Convert data](../quick-start/convert-data.md). |
+| **matyan-client restore-reingest** | Restore a backup by replaying through the ingestion pipeline (REST API + frontier). Options: `--backend-url`, `--frontier-url`, `--skip-entities`, `--skip-blobs`, `--dry-run`. See [Backups and restore](../using/backups-and-restore.md). |
+| **matyan-client convert tensorboard** | Convert TensorBoard event logs to a Matyan backup archive. Arguments: `input_dir`, `output_path`. Options: `--experiment`, `--compress`, `--workers`. See [Convert data](../quick-start/convert-data.md). |
 
 Example:
 
 ```bash
-cd extra/matyan-client && uv run matyan restore-reingest /path/to/backup.tar.gz
-cd extra/matyan-client && uv run matyan convert tensorboard /path/to/tb_logs /tmp/out --compress
+matyan-client restore-reingest /path/to/backup.tar.gz
+matyan-client convert tensorboard /path/to/tb_logs /tmp/out --compress
 ```
 
 ## Docker Compose
@@ -84,7 +84,7 @@ cd extra/matyan-client && uv run matyan convert tensorboard /path/to/tb_logs /tm
 From the repo root:
 
 ```bash
-docker compose up -d
+./dev/compose-cluster.sh up -d
 ```
 
 Starts FDB, Kafka, MinIO, backend, frontier, and workers (see `docker-compose.yml`). No separate init or UI server command — the stack is already configured.
@@ -94,5 +94,5 @@ Starts FDB, Kafka, MinIO, backend, frontier, and workers (see `docker-compose.ym
 - There is no local repo init — storage is on the server (FDB + S3).
 - Run the backend (and optionally serve the UI) as above.
 - Use the backend API or `matyan_client.Repo` for run operations.
-- Backups: create with **matyan-backend backup**; restore with **matyan-backend restore** (direct) or **matyan restore-reingest** (client). See [Backups and restore](../using/backups-and-restore.md).
+- Backups: create with **matyan-backend backup**; restore with **matyan-backend restore** (direct) or **matyan-client restore-reingest** (client). See [Backups and restore](../using/backups-and-restore.md).
 - See [Convert data](../quick-start/convert-data.md) for TensorBoard and other migrations.

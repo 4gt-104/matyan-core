@@ -54,7 +54,7 @@ This page describes the code style and tooling expectations for the Matyan codeb
 
 - All docstrings must be written in **Sphinx format** (reStructuredText with `:param`, `:returns`, `:raises`, etc.) so that mkdocstrings and the API reference render them correctly. **Omit** `:type` and `:rtype` — the code is already type-hinted; do not duplicate types in the docstring.
 - **Every** public **function**, **class**, **method**, **property**, and **module** must have a **verbose docstring**: a short imperative summary, then parameters, return value, raised exceptions, and (when useful) a brief body explaining behavior or usage.
-- Avoid minimal or placeholder docstrings; prefer a clear description of what the API does and when to use it. See the project’s docstring conventions in `.cursor/rules/docstrings.mdc` for examples.
+- Avoid minimal or placeholder docstrings; prefer a clear description of what the API does and when to use it.
 
 ## Summary
 

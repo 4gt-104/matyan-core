@@ -215,6 +215,8 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
+.worktrees/
+
 .vscode/
 /site/
 .helm/

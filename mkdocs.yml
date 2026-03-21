@@ -45,6 +45,9 @@ extra:
   social:
     - icon: fontawesome/brands/github
       link: https://github.com/4gt-104/matyan-core
+  version:
+    provider: mike
+    default: stable
 
 extra_css:
   - stylesheets/extra.css

@@ -28,8 +28,9 @@ The client provides the `Run`, `Repo`, and `track()` API and sends data to the M
 From the repository root:
 
 ```bash
-docker compose build
-docker compose up -d
+git clone https://github.com/4gt-104/matyan-core.git
+cd matyan-core
+./dev/compose-cluster.sh up -d
 ```
 
 !!! note "Host network mode"
@@ -42,6 +43,7 @@ This starts:
 - **MinIO** (S3-compatible storage for blobs)
 - **matyan-backend** (REST API, default port 53800)
 - **matyan-frontier** (ingestion gateway, default port 53801)
+- **matyan-ui** (FastAPI web server, default port 8000)
 - **Ingestion and control workers** (Kafka consumers)
 
 ## Configure the client
@@ -71,18 +73,16 @@ Data is sent to the frontier (WebSocket) and backend (REST); workers persist it 
 
 ## Browsing results in the UI
 
-Open the Matyan UI in your browser at `http://localhost:53800` (or your backend URL). Use the Metrics explorer, run search, and run details.
+Open the Matyan UI in your browser at `http://localhost:8000`. Use the Metrics explorer, run search, and run details.
 
 ## Smoke tests (optional)
 
-From the repo root with the stack running:
+From the `extra/matyan-backend` with the stack running:
 
 ```bash
 uv run python scripts/smoke_test.py   # FDB + S3
 uv run python scripts/smoke_kafka.py # Kafka
 ```
-
-(Paths may differ if scripts live in `extra/matyan-backend` or similar.)
 
 ## Next
 

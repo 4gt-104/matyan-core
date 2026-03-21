@@ -10,19 +10,19 @@ Link files (e.g. configs, checkpoints) to a run. Matyan stores artifact **metada
 
 1. **Log a file:**
 
-```python
-from matyan_client import Run
+    ```python
+    from matyan_client import Run
 
-run = Run(experiment="demo")
-run.log_artifact("config.yaml", name="run-config")
-run.close()
-```
+    run = Run(experiment="demo")
+    run.log_artifact("config.yaml", name="run-config")
+    run.close()
+    ```
 
 2. **Log a directory:**
 
-```python
-run.log_artifacts("checkpoints/", name="ckpts")
-```
+    ```python
+    run.log_artifacts("checkpoints/", name="ckpts")
+    ```
 
 The client requests a presigned URL from the frontier, uploads the file(s) to S3, and the frontier publishes blob references to Kafka. Ingestion workers persist metadata to FDB so the UI and API can list and serve artifacts.
 

@@ -15,9 +15,6 @@ icon: material/rocket
 
 <p align="center">
   <a href="https://pypi.org/project/matyan-client">
-    <img src="https://img.shields.io/pypi/v/matyan-client.svg" alt="PyPI version">
-  </a>
-  <a href="https://pypi.org/project/matyan-client">
     <img src="https://img.shields.io/pypi/pyversions/matyan-client.svg" alt="Python versions">
   </a>
   <a href="https://github.com/4gt-104/matyan-core/blob/main/LICENSE">
@@ -27,7 +24,7 @@ icon: material/rocket
 
 ---
 
-**Matyan** is a fork of [Aim](https://github.com/aimhubio/aim) (aimhub) that **reimplements the backend** while keeping the **frontend (UI) and Python SDK API unchanged**. You get the same workflows and dashboards, with a modern stack: FoundationDB, Kafka, and stateless services.
+**Matyan** (մատյան, *book of records* in Armenian) is a fork of [Aim](https://github.com/aimhubio/aim) (aimhub) that **reimplements the backend** while keeping the **frontend (UI) and Python SDK API unchanged**. You get the same workflows and dashboards, with a modern stack: FoundationDB, Kafka, and stateless services.
 
 ## ✨ Features
 
@@ -49,8 +46,7 @@ Infrastructure (FoundationDB, Kafka, MinIO) plus backend, frontier, and workers:
 ```bash
 git clone https://github.com/4gt-104/matyan-core.git
 cd matyan-core
-docker compose build
-docker compose up -d
+./dev/compose-cluster.sh up -d
 ```
 
 Then open the UI (default: backend on port 53800, UI may be served separately — see [Getting started](getting-started.md)).

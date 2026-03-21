@@ -619,7 +619,7 @@ backend:
   image:
     repository: docker.io/288888/matyan-backend
     # -- Image tag. Replace "0" with a concrete version before deploying.
-    tag: 0.2.0
+    tag: "0.2.1"
     pullPolicy: IfNotPresent
 
   # -- Kubernetes Service configuration for the backend.
@@ -689,7 +689,7 @@ frontier:
   image:
     repository: docker.io/288888/matyan-frontier
     # -- Image tag.
-    tag: 0.2.0
+    tag: "0.2.1"
     pullPolicy: IfNotPresent
 
   # -- Kubernetes Service configuration for the frontier.
@@ -747,7 +747,7 @@ ui:
   image:
     repository: docker.io/288888/matyan-ui
     # -- Image tag.
-    tag: 0.2.0
+    tag: "0.3.0"
     pullPolicy: IfNotPresent
 
   # -- Kubernetes Service configuration for the UI.
@@ -837,7 +837,7 @@ ingestionWorker:
   image:
     repository: docker.io/288888/matyan-backend
     # -- Image tag.
-    tag: 0.2.0
+    tag: "0.2.1"
     pullPolicy: IfNotPresent
 
   # -- Entrypoint command that starts the ingestion worker process.
@@ -892,7 +892,7 @@ controlWorker:
   image:
     repository: docker.io/288888/matyan-backend
     # -- Image tag.
-    tag: 0.2.0
+    tag: "0.2.1"
     pullPolicy: IfNotPresent
 
   # -- Entrypoint command that starts the control worker process.

@@ -16,16 +16,16 @@ Matyan provides framework adapters for popular ML libraries. Import from `matyan
 
 | Framework | Adapter | Usage |
 |-----------|---------|--------|
-| **PyTorch Lightning** | `matyan_client.pytorch_lightning.AimLogger` | Pass as `trainer = Trainer(..., logger=aim_logger)`. Use `repo=` with backend URL. |
-| **PyTorch Ignite** | `matyan_client.pytorch_ignite.AimLogger` | Attach output handlers to the trainer. |
-| **Hugging Face** | `matyan_client.hugging_face.AimCallback` | Add to `Trainer(..., callbacks=[aim_callback])`. |
-| **Keras / tf.Keras** | `matyan_client.keras.AimCallback` or `matyan_client.tensorflow.AimCallback` | Add to `model.fit(..., callbacks=[AimCallback(...)])`. |
-| **XGBoost** | `matyan_client.xgboost.AimCallback` | Pass to `xgboost.train(..., callbacks=[AimCallback(...)])`. |
-| **LightGBM** | `matyan_client.lightgbm.AimCallback` | Pass to `lgb.train(..., callbacks=[AimCallback(...)])`. |
-| **CatBoost** | `matyan_client.catboost.AimLogger` | Pass to `model.fit(..., log_cout=AimLogger(...))`. |
-| **Optuna** | `matyan_client.optuna.AimCallback` | Pass to `study.optimize(..., callbacks=[aim_callback])`. |
-| **FastAI** | `matyan_client.fastai.AimCallback` | Pass to `cnn_learner(..., cbs=AimCallback(...))`. |
-| **Stable-Baselines3** | `matyan_client.sb3.AimCallback` | Pass to `model.learn(..., callback=AimCallback(...))`. |
+| **PyTorch Lightning** | `matyan_client.pytorch_lightning.MatyanLogger` | Pass as `trainer = Trainer(..., logger=aim_logger)`. Use `repo=` with backend URL. |
+| **PyTorch Ignite** | `matyan_client.pytorch_ignite.MatyanLogger` | Attach output handlers to the trainer. |
+| **Hugging Face** | `matyan_client.hugging_face.MatyanCallback` | Add to `Trainer(..., callbacks=[aim_callback])`. |
+| **Keras / tf.Keras** | `matyan_client.keras.MatyanCallback` or `matyan_client.tensorflow.MatyanCallback` | Add to `model.fit(..., callbacks=[MatyanCallback(...)])`. |
+| **XGBoost** | `matyan_client.xgboost.MatyanCallback` | Pass to `xgboost.train(..., callbacks=[MatyanCallback(...)])`. |
+| **LightGBM** | `matyan_client.lightgbm.MatyanCallback` | Pass to `lgb.train(..., callbacks=[MatyanCallback(...)])`. |
+| **CatBoost** | `matyan_client.catboost.MatyanLogger` | Pass to `model.fit(..., log_cout=MatyanLogger(...))`. |
+| **Optuna** | `matyan_client.optuna.MatyanCallback` | Pass to `study.optimize(..., callbacks=[aim_callback])`. |
+| **FastAI** | `matyan_client.fastai.MatyanCallback` | Pass to `cnn_learner(..., cbs=MatyanCallback(...))`. |
+| **Stable-Baselines3** | `matyan_client.sb3.MatyanCallback` | Pass to `model.learn(..., callback=MatyanCallback(...))`. |
 
 In all cases, use `repo="http://your-backend:53800"` (or the same URL via `MATYAN_BACKEND_URL`) so the adapter sends data to your Matyan backend and frontier.
 
