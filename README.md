@@ -29,7 +29,7 @@ All app services are stateless and horizontally scalable. See [.cursor/rules/mat
 1. **Infrastructure only** (FDB, Kafka, S3):
 
    ```bash
-   docker compose up -d
+   ./dev/compose-cluster.sh up -d
    ```
 
    Then run backend, frontier, and UI from the repo (see each package README for `uv run` commands).
@@ -37,7 +37,7 @@ All app services are stateless and horizontally scalable. See [.cursor/rules/mat
 2. **Full stack via Docker** (if services are defined in `docker-compose.yml`):
 
    ```bash
-   docker compose up -d
+   ./dev/compose-cluster.sh up -d
    ```
 
 3. **Kubernetes**: Use the Helm chart:
