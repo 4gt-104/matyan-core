@@ -156,10 +156,15 @@ jobs:
           APP_VERSION: ${{ steps.release.outputs.app_version }}
         working-directory: gh-pages
         run: |
+          # mike may have pushed additional commits; fetch and move to the
+          # current remote tip before committing so the push is fast-forward.
+          git fetch origin main
+          git checkout main
+          git reset --hard origin/main
           git add helm/
           if git diff --cached --quiet; then
             echo "No Helm changes to commit."
           else
             git commit -m "Publish Helm chart $CHART_VERSION (app $APP_VERSION)"
-            git push origin HEAD:main
+            git push origin main
           fi
