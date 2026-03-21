@@ -104,15 +104,6 @@ jobs:
           mkdir -p gh-pages/helm
           helm package deploy/helm/matyan --destination gh-pages/helm/
 
-      - name: Update Helm repo index
-        run: |
-          cd gh-pages/helm
-          if [[ -f index.yaml ]]; then
-            helm repo index . --url "https://4gt-104.github.io/matyan-core/helm" --merge index.yaml
-          else
-            helm repo index . --url "https://4gt-104.github.io/matyan-core/helm"
-          fi
-
       # ── Docs publishing via mike ───────────────────────────────────────────
 
       - name: Initialize source submodules for mkdocstrings
@@ -161,10 +152,18 @@ jobs:
           # current remote tip before committing so the push is fast-forward.
           # Use -f on checkout: helm/index.yaml already exists as an untracked
           # file (built earlier in the job) and would otherwise block the switch.
-          # We reset --hard immediately after, then re-add the freshly-built files.
+          # We reset --hard immediately after, then regenerate index.yaml on top
+          # of the restored baseline so it captures all chart versions correctly.
           git fetch origin main
           git checkout -f main
           git reset --hard origin/main
+          cd helm
+          if [[ -f index.yaml ]]; then
+            helm repo index . --url "https://4gt-104.github.io/matyan-core/helm" --merge index.yaml
+          else
+            helm repo index . --url "https://4gt-104.github.io/matyan-core/helm"
+          fi
+          cd ..
           git add helm/
           if git diff --cached --quiet; then
             echo "No Helm changes to commit."
