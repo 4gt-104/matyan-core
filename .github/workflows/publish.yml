@@ -159,8 +159,11 @@ jobs:
         run: |
           # mike may have pushed additional commits; fetch and move to the
           # current remote tip before committing so the push is fast-forward.
+          # Use -f on checkout: helm/index.yaml already exists as an untracked
+          # file (built earlier in the job) and would otherwise block the switch.
+          # We reset --hard immediately after, then re-add the freshly-built files.
           git fetch origin main
-          git checkout main
+          git checkout -f main
           git reset --hard origin/main
           git add helm/
           if git diff --cached --quiet; then
