@@ -22,8 +22,6 @@ Monorepo for **Matyan** (մատյան, *book of records* in Armenian), an experi
 - **Ingestion** (training): Client → frontier (WebSocket / presigned S3) → Kafka → backend workers → FoundationDB (and S3 for blobs).
 - **Control** (delete, rename, etc.): UI → backend REST API → FoundationDB + Kafka control-events → workers (e.g. S3 cleanup).
 
-All app services are stateless and horizontally scalable. See [.cursor/rules/matyan-project-context.mdc](.cursor/rules/matyan-project-context.mdc) for full design and data flow.
-
 ## Quick start (local)
 
 1. **Infrastructure only** (FDB, Kafka, S3):
@@ -60,6 +58,10 @@ All app services are stateless and horizontally scalable. See [.cursor/rules/mat
 - Dependencies: `uv sync` (per package under `extra/`).
 - Lint/format: `uvx ruff check .` and `uvx ruff format .`.
 - Type check: `uvx ty check` (from repo root or per package).
+
+## Documentation
+
+Full documentation is available at **[https://4gt-104.github.io/matyan-core/stable/](https://4gt-104.github.io/matyan-core/stable/)** — getting started, architecture, API reference, deployment guide, and more.
 
 ## Component READMEs
 
