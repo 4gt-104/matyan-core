@@ -2,6 +2,8 @@
 
 Monorepo for **Matyan** (մատյան, *book of records* in Armenian), an experiment-tracking stack forked from [Aim](https://github.com/aimhubio/aim). The backend is reimplemented (FastAPI, FoundationDB, Kafka, S3); the original Aim frontend (React UI) is preserved and served separately. Training clients log via the **frontier** (WebSocket + presigned S3); the UI and control operations talk to the **backend** REST API.
 
+**Documentation:** [https://4gt-104.github.io/matyan-core/stable/](https://4gt-104.github.io/matyan-core/stable/) — getting started, architecture, API reference, deployment guide, and more.
+
 ## Repo layout
 
 | Path | Purpose |
@@ -13,8 +15,7 @@ Monorepo for **Matyan** (մատյան, *book of records* in Armenian), an experi
 | **`extra/matyan-api-models/`** | Shared Pydantic models (WS, Kafka, REST). [README](extra/matyan-api-models/README.md) |
 | **`extra/aim/`** | Original Aim codebase — reference only; not used at runtime. |
 | **`deploy/helm/matyan/`** | Helm chart for Kubernetes (API, frontier, UI, workers, FDB, Kafka, S3). [README](deploy/helm/matyan/README.md) |
-| **`scripts/`** | Seed data, smoke tests, and other one-off scripts. |
-| **`docker-compose.yml`** | Local dev: FDB, Kafka, S3 (RustFS/MinIO), optional app services. |
+| **`dev/docker-compose.yml`** | Local dev: FDB, Kafka, S3 (RustFS/MinIO), optional app services. |
 
 ## Architecture (summary)
 
@@ -58,10 +59,6 @@ Monorepo for **Matyan** (մատյան, *book of records* in Armenian), an experi
 - Dependencies: `uv sync` (per package under `extra/`).
 - Lint/format: `uvx ruff check .` and `uvx ruff format .`.
 - Type check: `uvx ty check` (from repo root or per package).
-
-## Documentation
-
-Full documentation is available at **[https://4gt-104.github.io/matyan-core/stable/](https://4gt-104.github.io/matyan-core/stable/)** — getting started, architecture, API reference, deployment guide, and more.
 
 ## Component READMEs
 
