@@ -848,8 +848,8 @@ annotations:
 
 **Docker Compose (local development):**
 
-When running locally with `network_mode: "host"`, each service uses a different
-port. Add targets to your `prometheus.yml`:
+When running locally with Docker Compose (bridge networking, port-forwarding),
+each service is exposed on the host. Add targets to your `prometheus.yml`:
 
 ```yaml
 scrape_configs:

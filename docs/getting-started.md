@@ -33,17 +33,28 @@ cd matyan-core
 ./dev/compose-cluster.sh up -d
 ```
 
-!!! note "Host network mode"
-    The Compose file uses **host network mode** for infrastructure services (FoundationDB, Kafka, RustFS) and some app services. Containers share the host network, so they listen on `localhost` and the client can use `http://localhost:53800` (backend) and `http://localhost:53801` (frontier). On Linux this works out of the box; on macOS/Windows, host mode may behave differently — use the host's IP or adjust for your environment.
+!!! note "Bridge networking with port-forwarding"
+    All services run in Docker's default **bridge network**. Ports are forwarded to the host so the client and browser can use `localhost`:
+
+    | Service | Host port |
+    |---|---|
+    | FoundationDB | `4500` |
+    | Kafka | `9092` |
+    | RustFS (S3 API / console) | `9000` / `9001` |
+    | matyan-backend | `53800` |
+    | matyan-frontier | `53801` |
+    | matyan-ui | `8000` |
+
+    Containers talk to each other using Docker service names (`kafka:9092`, `rustfs:9000`, etc.).
 
 This starts:
 
 - **FoundationDB** (single-node, dev)
 - **Kafka** (single broker; topics `data-ingestion`, `control-events`)
-- **MinIO** (S3-compatible storage for blobs)
-- **matyan-backend** (REST API, default port 53800)
-- **matyan-frontier** (ingestion gateway, default port 53801)
-- **matyan-ui** (FastAPI web server, default port 8000)
+- **RustFS** (S3-compatible storage for blobs)
+- **matyan-backend** (REST API, port 53800)
+- **matyan-frontier** (ingestion gateway, port 53801)
+- **matyan-ui** (FastAPI web server, port 8000)
 - **Ingestion and control workers** (Kafka consumers)
 
 ## Configure the client
