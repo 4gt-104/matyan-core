@@ -13,7 +13,7 @@ The Helm chart can create **Kubernetes CronJobs** that run the **matyan-backend*
 | **cleanup-orphan-s3** | `matyan-backend cleanup-orphan-s3` | Delete S3 objects under run prefixes for runs that have a **deletion tombstone** in FDB. Complements the control worker’s immediate S3 cleanup by catching any objects that were missed (e.g. eventual consistency, failed control-worker runs). |
 | **cleanup-tombstones** | `matyan-backend cleanup-tombstones` | Remove **old deletion tombstones** from the indexes subspace. Tombstones prevent deleted runs from being recreated by late ingestion messages; after the run’s S3 data has been cleaned (e.g. by control worker or cleanup-orphan-s3), the tombstone can be removed to avoid unbounded growth of the `_deleted` index. |
 
-Both CronJobs are **optional** and **disabled by default**. Enable them in `values.yaml` (or an overlay) under `periodicJobs.*`.
+Both CronJobs are **enabled by default** with their default schedules. Disable them in `values.yaml` (or an overlay) by setting `periodicJobs.<name>.enabled: false` or `schedule: ""`.
 
 ## Enabling and configuring
 
@@ -91,4 +91,4 @@ See the backend CLI help (`matyan-backend cleanup-orphan-s3 --help`, `matyan-bac
 | cleanup-orphan-s3 | `0 3 * * *` (daily 03:00) | `lockTtlSeconds`, `limit` |
 | cleanup-tombstones | `0 4 * * 0` (weekly Sun 04:00) | `olderThanHours`, `lockTtlSeconds` |
 
-Both jobs are rendered only when **`periodicJobs.<name>.enabled`** is true, **`schedule`** is non-empty, and the chart has a valid FDB cluster file configuration. See [Production (Helm)](production.md) for required FDB and S3 configuration.
+Both jobs are rendered when **`periodicJobs.<name>.enabled`** is true and **`schedule`** is non-empty (both default to `true` with preset schedules). They also require a valid FDB cluster file configuration. See [Production (Helm)](production.md) for required FDB and S3 configuration.

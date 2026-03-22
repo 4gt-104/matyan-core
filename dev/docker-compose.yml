@@ -56,7 +56,7 @@ services:
       - fdb-shared:/var/fdb
 
   kafka:
-    image: apache/kafka:latest
+    image: apache/kafka:4.2.0
     ports:
       - "9092:9092"
     environment:
@@ -86,7 +86,7 @@ services:
       start_period: 15s
 
   kafka-init:
-    image: apache/kafka:latest
+    image: apache/kafka:4.2.0
     depends_on:
       kafka:
         condition: service_healthy
@@ -100,7 +100,7 @@ services:
     restart: "no"
 
   rustfs-init:
-    image: alpine
+    image: alpine:3.23.3
     volumes:
       - rustfs-data-0:/data0
       - rustfs-data-1:/data1
@@ -110,7 +110,7 @@ services:
     restart: "no"
 
   rustfs:
-    image: rustfs/rustfs:latest
+    image: rustfs/rustfs:1.0.0-alpha.89
     ports:
       - "9000:9000"                  # S3 API
       - "9001:9001"                  # web console

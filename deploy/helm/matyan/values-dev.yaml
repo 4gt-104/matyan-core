@@ -1,0 +1,87 @@
+# ────────────────────────────────────────────────────────────────────────────
+# Matyan — minimal sample values
+#
+# This file installs all components (FDB operator + cluster, Kafka, RustFS)
+# in a single namespace — the quickest path to a working stack.
+#
+# Steps:
+#   1. Fill in every value marked  ← REQUIRED
+#   2. Review the optional blocks and uncomment/edit as needed
+#   3. Deploy:
+#        helm upgrade --install matyan https://4gt-104.github.io/helm \
+#          --version 0.1.2 -f values.yaml --create-namespace -n matyan
+# ────────────────────────────────────────────────────────────────────────────
+
+
+# ── Public URLs ───────────────────────────────────────────────────────────────
+# The hostname(s) at which the UI and backend are reachable from a browser.
+# Both can share the same hostname; the Ingress below routes by path
+# (/  → UI,  /api/v1  → backend).
+
+ui:
+  hostBase: "https://matyan.example.com"   # ← REQUIRED
+
+backend:
+  hostBase: "https://matyan.example.com"   # ← REQUIRED
+
+
+# ── Ingress ───────────────────────────────────────────────────────────────────
+ingress:
+  enabled: true
+  className: "nginx"             # ← set to your ingress class (nginx / traefik / alb …)
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod  # ← remove if not using cert-manager
+
+
+# ── Blob URI secret ───────────────────────────────────────────────────────────
+# Fernet key used to encrypt blob URIs returned by the backend.
+# Keep this stable across upgrades; changing it invalidates all existing blob URLs.
+#
+# Generate a key:
+#   python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+
+blobUriSecret:
+  value: ""   # ← REQUIRED
+
+
+# ── FoundationDB ──────────────────────────────────────────────────────────────
+# Installs the FDB operator and creates a single-node FDB cluster managed by the
+# operator.  The operator writes the cluster file to a ConfigMap which is
+# automatically mounted into the backend and worker pods.
+
+fdb-cluster:
+  configureDatabase: true
+  databaseConfiguration:
+    redundancyMode: "single"   # single | double | triple
+    storageEngine: "ssd"     # ssd (persistent)  or  memory (no disk, data lost on restart)
+  processCounts:
+    cluster_controller: 1
+    log: 1
+    storage: 1
+    stateless: 1
+  processes:
+    general:
+      volumeClaimTemplate:
+        storageClassName: ""   # ← REQUIRED set to your StorageClass name
+        storage: "16Gi"
+
+
+# ── Object storage (RustFS) ───────────────────────────────────────────────────
+# In-cluster S3-compatible store for run artifacts (images, audio, figures, etc.).
+# Training clients upload blobs via presigned URLs; the URL must be reachable from
+# wherever the training code runs.  If clients run outside the cluster, uncomment
+# s3Ingress and add the hostname below.
+
+# rustfs:
+  # Uncomment when training clients run outside the cluster:
+  # s3Ingress:
+  #   enabled: true
+  #   hosts:
+  #     - host: s3.matyan.example.com   # ← REQUIRED if enabled
+  #       paths:
+  #         - path: /
+  #           pathType: Prefix
+  #           port: 9000
+  #   tls:
+  #     - hosts:
+  #         - s3.matyan.example.com

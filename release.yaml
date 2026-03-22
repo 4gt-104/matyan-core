@@ -12,4 +12,4 @@ images:
 
 helm:
   # Helm chart version (Chart.yaml .version). Bump when the chart structure changes.
-  version: "0.1.1"
+  version: "0.2.0"

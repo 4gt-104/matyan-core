@@ -39,9 +39,8 @@ commonAnnotations: {}
 # Client connection settings (bootstrap servers, auth) live in kafkaClient below.
 kafka:
   # -- Deploy the Bitnami Kafka subchart as an in-cluster single-broker.
-  # Set to true for development; use an external cluster (kafkaClient.bootstrapServers)
-  # for production.
-  install: false
+  # Set to false and configure kafkaClient.bootstrapServers to use an external cluster.
+  install: true
 
   # -- Kafka topic name for high-volume data ingestion messages
   # (metrics, hparams, blob refs, log lines).
@@ -192,8 +191,8 @@ kafkaClient:
 #   - An external S3-compatible store must be configured via s3.endpoint,
 #     s3.accessKey, and s3.secretKey (or s3.existingSecret).
 rustfs:
-  # -- Deploy the RustFS subchart. Enable for development; use external S3 for production.
-  install: false
+  # -- Deploy the RustFS subchart. Set to false and configure s3.* to use an external S3.
+  install: true
 
   # -- RustFS root credentials.
   # When rustfs.install is true, these are also used by all matyan services as
@@ -203,6 +202,31 @@ rustfs:
     accessKey: "rustfsadmin"
     # -- Root secret key (equivalent to MinIO's MINIO_ROOT_PASSWORD).
     secretKey: "rustfsadmin"
+
+  # -- RustFS deployment mode. Standalone (single replica, local path) is the default and
+  # works out of the box on single-node clusters (Minikube, k3s, etc.).
+  # Switch to distributed mode for multi-node production deployments by setting
+  # mode.standalone.enabled: false, mode.distributed.enabled: true, replicaCount: 4+,
+  # and config.rustfs.volumes to a distributed URL pattern
+  # (e.g. "http://rustfs-{0...3}.rustfs-headless:9000/data/rustfs{0...3}").
+  replicaCount: 1
+  mode:
+    standalone:
+      enabled: true
+    distributed:
+      enabled: false
+  config:
+    rustfs:
+      # -- Local data path for standalone mode. In distributed mode, set this to a
+      # URL pattern such as "http://rustfs-{0...3}.rustfs-headless:9000/data/rustfs{0...3}".
+      volumes: "/data"
+
+  # -- StorageClass and volume sizes for RustFS PVCs.
+  # Leave storageclass.name empty to use the cluster default StorageClass.
+  storageclass:
+    name: ""
+    dataStorageSize: "16Gi"
+    logStorageSize: "4Gi"
 
   # -- Optional Ingress to expose the RustFS S3 API port (9000) externally.
   # Required when training clients need to upload blobs directly to S3 via presigned
@@ -239,10 +263,8 @@ rustfs:
 # All keys other than install are passed as-is to the fdb-operator subchart.
 fdb-operator:
   # -- Deploy the FDB operator subchart.
-  # Set to true only when the operator is not already installed in the cluster.
-  # In production, the operator is typically installed cluster-wide once and shared
-  # across namespaces; set install: false and rely on the existing operator.
-  install: false
+  # Set to false when the operator is already installed cluster-wide.
+  install: true
 
 # -- FoundationDB cluster configuration (FoundationDBCluster CR spec).
 # Controls the FoundationDBCluster custom resource when install is true.
@@ -264,7 +286,7 @@ fdb-operator:
 fdb-cluster:
   # -- Create the FoundationDBCluster custom resource.
   # Requires the FDB operator to be present (either via fdb-operator.install or pre-installed).
-  install: false
+  install: true
 
   # -- Name of the FoundationDBCluster CR. Defaults to the Helm release name when empty.
   clusterName: ""
@@ -287,11 +309,11 @@ fdb-cluster:
     # -- Redundancy mode for FDB data replication.
     # Valid values: single, double, triple, three_data_hall, three_datacenter.
     # Use "single" for dev (one storage process), "double" or higher for production.
-    redundancyMode: ""
+    redundancyMode: "single"
     # -- Storage engine used by FDB storage processes.
     # Valid values: ssd, ssd-1, ssd-2, memory, memory-1, memory-2, redwood-experimental.
     # Use "memory" for dev (no persistent disk), "ssd" or "ssd-2" for production.
-    storageEngine: ""
+    storageEngine: "ssd"
 
   # -- Inline cluster file content.
   # Use when you want to provide the cluster connection string directly in values
@@ -312,37 +334,37 @@ fdb-cluster:
   # -- FoundationDBCluster CR: automationOptions spec field.
   automationOptions:
     # -- Allow the operator to replace failed processes automatically.
-    # Set to true for self-healing clusters; null defers to the operator default.
-    replacementsEnabled: null
+    replacementsEnabled: true
 
   # -- FoundationDBCluster CR: faultDomain spec field.
   faultDomain:
     # -- Kubernetes node label used to determine fault domain boundaries.
     # Common values: "kubernetes.io/hostname" (per-node), "foundationdb.org/none" (single zone).
-    # Leave empty to use the operator default.
-    key: ""
+    key: "foundationdb.org/none"
 
   # -- FoundationDBCluster CR: imageType spec field.
   # Controls whether the operator uses a unified or split image for FDB processes.
-  # Valid values: "unified", "split". Leave empty to use the operator default.
-  imageType: ""
+  # Valid values: "unified", "split".
+  imageType: "split"
 
   # -- FoundationDBCluster CR: labels spec field.
   labels:
     # -- Whether the operator should filter pods by owner reference.
-    # Set to false in multi-cluster setups where owner references may differ.
-    filterOnOwnerReference: null
+    filterOnOwnerReference: false
     # -- Additional labels the operator uses to select FDB pods.
-    matchLabels: {}
+    matchLabels:
+      foundationdb.org/fdb-cluster-name: "matyan"
     # -- Label keys applied to pods to indicate their FDB process class (storage, log, etc.).
-    processClassLabels: []
+    processClassLabels:
+      - foundationdb.org/fdb-process-class
     # -- Label keys applied to pods to indicate their FDB process group ID.
-    processGroupIDLabels: []
+    processGroupIDLabels:
+      - foundationdb.org/fdb-process-group-id
 
   # -- FoundationDBCluster CR: minimumUptimeSecondsForBounce spec field.
   # Minimum seconds a process must have been running before the operator will
-  # restart it for a configuration change. Null defers to the operator default.
-  minimumUptimeSecondsForBounce: null
+  # restart it for a configuration change.
+  minimumUptimeSecondsForBounce: 60
 
   # -- FoundationDBCluster CR: processCounts spec field.
   # Override the number of FDB processes of each class the operator should run.
@@ -364,22 +386,40 @@ fdb-cluster:
     # -- Default entry applied to all process classes unless overridden.
     general:
       # -- Additional FDB knobs passed to all processes via the command line.
-      # Example: ["knob_disable_posix_kernel_aio=1"]
-      customParameters: []
+      customParameters:
+        - knob_disable_posix_kernel_aio=1
       # -- Pod template overrides applied to FDB process pods.
       podTemplate:
         # -- Resource and security context overrides for the main FDB container.
         foundationdb:
-          resources: {}
-          securityContext: {}
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+          securityContext:
+            runAsUser: 0
         # -- Resource and security context overrides for the FDB sidecar container.
         sidecar:
-          resources: {}
-          securityContext: {}
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "100m"
+              memory: "128Mi"
+          securityContext:
+            runAsUser: 0
         # -- Resource and security context overrides for the FDB init container.
         init:
-          resources: {}
-          securityContext: {}
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "100m"
+              memory: "128Mi"
+          securityContext:
+            runAsUser: 0
       # -- PersistentVolumeClaim template for FDB data volumes.
       volumeClaimTemplate:
         # -- StorageClass name for FDB data volumes. Leave empty to use the cluster default.
@@ -398,20 +438,19 @@ fdb-cluster:
   routing:
     # -- Add DNS-based locality fields to the cluster file.
     # Enables pod DNS names in the cluster file for stable addressing across restarts.
-    # Recommended for production. Null defers to the operator default.
-    defineDNSLocalityFields: null
+    defineDNSLocalityFields: true
 
   # -- FoundationDBCluster CR: sidecarContainer spec field.
   sidecarContainer:
-    # -- Enable the liveness probe on the FDB sidecar container. Null = operator default.
-    enableLivenessProbe: null
-    # -- Enable the readiness probe on the FDB sidecar container. Null = operator default.
-    enableReadinessProbe: null
+    # -- Enable the liveness probe on the FDB sidecar container.
+    enableLivenessProbe: true
+    # -- Enable the readiness probe on the FDB sidecar container.
+    enableReadinessProbe: false
 
   # -- FoundationDBCluster CR: useExplicitListenAddress spec field.
   # When true, FDB processes bind to their pod IP explicitly rather than 0.0.0.0.
-  # Required in some CNI configurations. Null defers to the operator default.
-  useExplicitListenAddress: null
+  # Required in some CNI configurations.
+  useExplicitListenAddress: true
 
 # -- FoundationDB client connection settings used by all matyan services
 # (backend, ingestion workers, control workers).
@@ -653,7 +692,12 @@ backend:
   #       memory: "512Mi"
   #     limits:
   #       memory: "1Gi"
-  resources: {}
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "800Mi"
+    limits:
+      memory: "2048Mi"
 
   # -- Additional environment variables injected into the backend container.
   # Each entry follows the Kubernetes EnvVar spec (name, value or valueFrom).
@@ -713,7 +757,12 @@ frontier:
   podLabels: {}
 
   # -- CPU and memory resource requests and limits for the frontier container.
-  resources: {}
+  resources:
+    requests:
+      cpu: "40m"
+      memory: "400Mi"
+    limits:
+      memory: "768Mi"
 
   # -- Additional environment variables injected into the frontier container.
   extraEnv: []
@@ -802,7 +851,12 @@ ui:
   podLabels: {}
 
   # -- CPU and memory resource requests and limits for the UI container.
-  resources: {}
+  resources:
+    requests:
+      cpu: "40m"
+      memory: "256Mi"
+    limits:
+      memory: "384Mi"
 
   # -- Additional environment variables injected into the UI container.
   extraEnv: []
@@ -855,7 +909,12 @@ ingestionWorker:
   podLabels: {}
 
   # -- CPU and memory resource requests and limits for the ingestion worker container.
-  resources: {}
+  resources:
+    requests:
+      cpu: "60m"
+      memory: "256Mi"
+    limits:
+      memory: "512Mi"
 
   # -- Additional environment variables injected into the ingestion worker container.
   extraEnv: []
@@ -909,7 +968,12 @@ controlWorker:
   podLabels: {}
 
   # -- CPU and memory resource requests and limits for the control worker container.
-  resources: {}
+  resources:
+    requests:
+      cpu: "40m"
+      memory: "384Mi"
+    limits:
+      memory: "512Mi"
 
   # -- Additional environment variables injected into the control worker container.
   extraEnv: []
@@ -934,7 +998,7 @@ periodicJobs:
   # -- Orphan S3 cleanup: delete S3 objects for runs that have a deletion tombstone.
   cleanupOrphanS3:
     # -- Create a CronJob that runs cleanup-orphan-s3.
-    enabled: false
+    enabled: true
     # -- Cron schedule (e.g. "0 3 * * *" for daily at 03:00). Required when enabled.
     schedule: "0 3 * * *"
     # -- FDB lock TTL in seconds; only one instance runs at a time when > 0.
@@ -950,7 +1014,7 @@ periodicJobs:
   # -- Tombstone cleanup: remove old deletion tombstones from FDB.
   cleanupTombstones:
     # -- Create a CronJob that runs cleanup-tombstones.
-    enabled: false
+    enabled: true
     # -- Cron schedule (e.g. "0 4 * * 0" for weekly Sunday 04:00). Required when enabled.
     schedule: "0 4 * * 0"
     # -- Only clear tombstones older than this many hours (default 168 = 7 days).

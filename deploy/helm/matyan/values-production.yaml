@@ -1,0 +1,195 @@
+# ────────────────────────────────────────────────────────────────────────────
+# Matyan — production values overlay
+#
+# Deploys the FDB cluster via the chart (operator must already be installed).
+# Kafka and S3 are externally managed. Replace every placeholder marked ← with
+# your actual values before deploying.
+#
+# Deploy:
+#   helm upgrade --install matyan https://4gt-104.github.io/helm \
+#     --version <VERSION> -f values-production.yaml --create-namespace -n matyan
+# ────────────────────────────────────────────────────────────────────────────
+
+
+# ── FoundationDB ──────────────────────────────────────────────────────────────
+# The FDB operator must already be installed in the cluster (fdb-operator.install
+# is false here).  This chart creates and manages the FoundationDBCluster CR;
+# the operator reconciles it and writes the cluster file into a ConfigMap which
+# is automatically mounted into backend and worker pods.
+
+fdb-operator:
+  install: false   # operator is pre-installed; skip re-deploying it
+
+fdb-cluster:
+  configureDatabase: true
+  databaseConfiguration:
+    redundancyMode: "double"   # double = 2-replica; use triple for 3-datacenter HA
+    storageEngine: "ssd"       # ssd = persistent NVMe/SSD; memory = ephemeral (dev only)
+  processCounts:
+    cluster_controller: 1
+    log: 3
+    storage: 3
+    stateless: 2
+  processes:
+    general:
+      podTemplate:
+        # Pin all FDB pods to dedicated storage nodes and tolerate their taint.
+        # Replace hostnames with your actual node names.
+        affinity:
+          nodeAffinity:
+            requiredDuringSchedulingIgnoredDuringExecution:
+              nodeSelectorTerms:
+                - matchExpressions:
+                    - key: kubernetes.io/hostname
+                      operator: In
+                      values:
+                        - storage-1.example.com   # ← REQUIRED
+                        - storage-2.example.com   # ← REQUIRED
+                        - storage-3.example.com   # ← REQUIRED
+        tolerations:
+          - key: role
+            operator: Equal
+            value: storage-node
+            effect: NoSchedule
+      volumeClaimTemplate:
+        storageClassName: ""   # ← REQUIRED: set to your StorageClass name
+        storage: "100Gi"
+    # Hard spread: exactly 1 storage pod per node (3 pods across 3 nodes).
+    storage:
+      podTemplate:
+        affinity:
+          nodeAffinity:
+            requiredDuringSchedulingIgnoredDuringExecution:
+              nodeSelectorTerms:
+                - matchExpressions:
+                    - key: kubernetes.io/hostname
+                      operator: In
+                      values:
+                        - storage-1.example.com   # ← REQUIRED
+                        - storage-2.example.com   # ← REQUIRED
+                        - storage-3.example.com   # ← REQUIRED
+        tolerations:
+          - key: role
+            operator: Equal
+            value: storage-node
+            effect: NoSchedule
+        topologySpreadConstraints:
+          - maxSkew: 1
+            topologyKey: kubernetes.io/hostname
+            whenUnsatisfiable: DoNotSchedule   # hard — never schedule two storage pods on the same node
+            labelSelector:
+              matchLabels:
+                foundationdb.org/fdb-process-class: storage
+                foundationdb.org/fdb-cluster-name: matyan
+    # Soft spread: log pods prefer different nodes but can share if needed.
+    log:
+      podTemplate:
+        affinity:
+          nodeAffinity:
+            requiredDuringSchedulingIgnoredDuringExecution:
+              nodeSelectorTerms:
+                - matchExpressions:
+                    - key: kubernetes.io/hostname
+                      operator: In
+                      values:
+                        - storage-1.example.com   # ← REQUIRED
+                        - storage-2.example.com   # ← REQUIRED
+                        - storage-3.example.com   # ← REQUIRED
+        tolerations:
+          - key: role
+            operator: Equal
+            value: storage-node
+            effect: NoSchedule
+        topologySpreadConstraints:
+          - maxSkew: 1
+            topologyKey: kubernetes.io/hostname
+            whenUnsatisfiable: ScheduleAnyway   # soft — prefer spread, allow co-location
+            labelSelector:
+              matchLabels:
+                foundationdb.org/fdb-process-class: log
+                foundationdb.org/fdb-cluster-name: matyan
+    # Soft spread: stateless pods (coordinators, proxies) spread across nodes.
+    stateless:
+      podTemplate:
+        affinity:
+          nodeAffinity:
+            requiredDuringSchedulingIgnoredDuringExecution:
+              nodeSelectorTerms:
+                - matchExpressions:
+                    - key: kubernetes.io/hostname
+                      operator: In
+                      values:
+                        - storage-1.example.com   # ← REQUIRED
+                        - storage-2.example.com   # ← REQUIRED
+                        - storage-3.example.com   # ← REQUIRED
+        tolerations:
+          - key: role
+            operator: Equal
+            value: storage-node
+            effect: NoSchedule
+        topologySpreadConstraints:
+          - maxSkew: 1
+            topologyKey: kubernetes.io/hostname
+            whenUnsatisfiable: ScheduleAnyway   # soft — prefer spread, allow co-location
+            labelSelector:
+              matchLabels:
+                foundationdb.org/fdb-process-class: stateless
+                foundationdb.org/fdb-cluster-name: matyan
+
+
+# ── Kafka ─────────────────────────────────────────────────────────────────────
+# External Kafka cluster — skip the in-cluster broker subchart.
+
+kafka:
+  install: false
+
+kafkaClient:
+  bootstrapServers: "kafka.example.com:9092"   # ← REQUIRED
+
+
+# ── Object storage (S3) ───────────────────────────────────────────────────────
+# External S3-compatible store — skip the in-cluster RustFS subchart.
+# Credentials are read from the named Secret (keys: access-key, secret-key).
+
+rustfs:
+  install: false
+
+s3:
+  endpoint: "https://s3.example.com"    # ← REQUIRED: S3 endpoint URL
+  bucket: "matyan-artifacts"             # ← REQUIRED: bucket name
+  existingSecret: "matyan-s3"            # ← REQUIRED: Secret with access-key / secret-key
+
+
+# ── Blob URI secret ───────────────────────────────────────────────────────────
+# Fernet key used to sign blob URIs returned by the backend.  Must stay stable
+# across upgrades; changing it invalidates all existing blob URLs.
+# Secret must contain key: value (the Fernet key string).
+
+blobUriSecret:
+  existingSecret: "matyan-blob-uri"   # ← REQUIRED
+
+
+# ── Public URLs ───────────────────────────────────────────────────────────────
+# The hostname(s) at which the UI and backend are reachable from a browser.
+
+ui:
+  hostBase: "https://matyan.example.com"   # ← REQUIRED
+
+backend:
+  hostBase: "https://matyan.example.com"   # ← REQUIRED
+  extraEnv:
+    - name: MATYAN_ENVIRONMENT
+      value: "production"
+
+frontier:
+  extraEnv:
+    - name: MATYAN_ENVIRONMENT
+      value: "production"
+
+
+# ── Ingress ───────────────────────────────────────────────────────────────────
+# Enables the chart-managed Ingress resource.  Hostname and TLS are derived
+# from ui.hostBase / backend.hostBase above.
+
+ingress:
+  enabled: true

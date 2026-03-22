@@ -1,7 +1,5 @@
 # Extra values overlays (keep only values.yaml in the package)
 values-ad.yaml
-values-dev.yaml
-values-production.yaml
 
 # Samples and tests (not needed at install time)
 samples/

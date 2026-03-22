@@ -11,7 +11,7 @@ This page describes how to deploy Matyan to Kubernetes in production using the *
 The Helm chart lives at `deploy/helm/matyan/`. It:
 
 - **Always deploys** (when enabled): backend (REST API), frontier (ingestion gateway), UI (React app), ingestion workers (Kafka → FDB), control workers (control-events → S3 cleanup).
-- **Optionally deploys** (via subcharts): Kafka (Bitnami), S3-compatible store (RustFS), FoundationDB operator and cluster. These are **disabled by default**; production assumes you provide FDB, Kafka, and S3 outside the chart.
+- **Optionally deploys** (via subcharts): Kafka (Bitnami), S3-compatible store (RustFS), FoundationDB operator and cluster. These are **enabled by default** for a self-contained install. For production with external services, disable each subchart by setting the corresponding `*.install: false`.
 
 All application services are **stateless** and can be scaled by increasing `replicaCount`. The chart creates Deployments, Services, optional Ingress, optional ServiceMonitors, and optional **CronJobs** for periodic cleanup (orphan S3 deletion, tombstone removal). See [Periodic cleanup jobs (CronJobs)](periodic-cleanup-jobs.md) for how to enable and configure them.
 
@@ -60,20 +60,20 @@ To publish a new chart version: run `./scripts/publish-helm-to-gh-pages.sh` from
 
 ### Default values
 
-`values.yaml` defines all options with inline comments. Important defaults for production:
+`values.yaml` defines all options with inline comments. Important defaults:
 
-- **kafka.install**: `false` — use an external Kafka cluster.
-- **rustfs.install**: `false` — use an external S3 endpoint.
-- **fdb-operator.install**: `false` — do not deploy the FDB operator (use one already in the cluster or supply the cluster file yourself).
-- **fdb-cluster.install**: `false` — do not create a FoundationDBCluster CR; you supply the FDB cluster file via ConfigMap, Secret, or inline content.
+- **kafka.install**: `true` — deploys an in-cluster Kafka broker. Set `false` and configure `kafkaClient.bootstrapServers` to use an external cluster.
+- **rustfs.install**: `true` — deploys an in-cluster RustFS (S3-compatible) store. Set `false` and configure `s3.*` to use an external S3.
+- **fdb-operator.install**: `true` — deploys the FDB operator. Set `false` if the operator is already installed cluster-wide.
+- **fdb-cluster.install**: `true` — creates a FoundationDBCluster CR. Set `false` to supply the FDB cluster file yourself via `existingConfigMap`, `existingSecret`, or `clusterFileContent`.
+- **periodicJobs.cleanupOrphanS3.enabled** / **periodicJobs.cleanupTombstones.enabled**: `true` — periodic cleanup CronJobs are on by default. Set `enabled: false` or `schedule: ""` to disable.
 - **backend.hostBase**, **ui.hostBase**: `""` — **required**; you must set these to the public URLs (e.g. `https://api.matyan.example.com`, `https://matyan.example.com`).
 - **ingress.enabled**: `false` — enable and configure when you want the chart to create the Ingress.
 
 ### Values overlays
 
-- **values-production.yaml** — Intended for production: no subcharts, external FDB/Kafka/S3, credentials via `existingSecret`, optional periodic CronJobs and Ingress enabled. Use it as a base and override with `--set` or a custom file.
-- **values-dev.yaml** — Enables Kafka, RustFS, and FDB in-cluster for local/dev; useful with a single-node cluster or Minikube.
-- **values-ad.yaml** — Example or environment-specific overrides (adjust as needed).
+- **values-production.yaml** — Intended for production: deploys the FDB cluster (operator assumed pre-installed), disables in-cluster Kafka and RustFS in favour of external services, credentials via `existingSecret`, Ingress enabled. Use it as a base and override with `--set` or a custom file.
+- **values-dev.yaml** — Deploys all subcharts in-cluster (single-node FDB, Kafka, RustFS) for local/dev; useful with a single-node cluster or Minikube. Overrides only what differs from the defaults (process counts, storage class, storage size).
 
 You typically run:
 
@@ -259,12 +259,12 @@ blobUriSecret:
 
 ## Periodic maintenance (CronJobs)
 
-The chart can create two CronJobs that run the backend CLI:
+The chart creates two CronJobs that run the backend CLI. Both are **enabled by default**:
 
-- **cleanupOrphanS3** — Deletes S3 objects for runs that have a deletion tombstone in FDB (e.g. if control-worker never processed the event). Enable with **periodicJobs.cleanupOrphanS3.enabled: true** and set **schedule** (e.g. `"0 3 * * *"` daily at 03:00).
-- **cleanupTombstones** — Removes old deletion tombstones from FDB so the `_deleted` index does not grow. Enable with **periodicJobs.cleanupTombstones.enabled: true** and **schedule** (e.g. `"0 4 * * 0"` weekly Sunday 04:00).
+- **cleanupOrphanS3** — Deletes S3 objects for runs that have a deletion tombstone in FDB (e.g. if control-worker never processed the event). Default schedule: daily at 03:00 (`"0 3 * * *"`).
+- **cleanupTombstones** — Removes old deletion tombstones from FDB so the `_deleted` index does not grow. Default schedule: weekly Sunday at 04:00 (`"0 4 * * 0"`).
 
-Both use the same FDB (and S3 for orphan cleanup) configuration as the application. Optional settings (lock TTL, limits) are documented in `values.yaml` under **periodicJobs.***.
+To disable a job set `periodicJobs.<name>.enabled: false` (or `schedule: ""`). Optional settings (lock TTL, limits) are documented in `values.yaml` under **periodicJobs.***.
 
 ## Prometheus metrics
 

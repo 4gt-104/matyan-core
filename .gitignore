@@ -222,5 +222,3 @@ __marimo__/
 .helm/
 .cursor/rules/matyan-project-context.mdc
 deploy/helm/matyan/values-ad.yaml
-deploy/helm/matyan/values-dev.yaml
-deploy/helm/matyan/values-production.yaml
