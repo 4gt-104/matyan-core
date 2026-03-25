@@ -106,6 +106,8 @@ spec:
               value: {{ include "matyan.s3PublicEndpoint" . | quote }}
             - name: S3_BUCKET
               value: {{ .Values.s3.bucket | quote }}
+            - name: S3_REGION
+              value: {{ .Values.s3.region | quote }}
             - name: S3_PRESIGN_EXPIRY
               value: {{ .Values.s3.presignExpiry | quote }}
             {{- if .Values.s3.existingSecret }}

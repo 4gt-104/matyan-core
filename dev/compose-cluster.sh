@@ -14,5 +14,7 @@ export DOCKER_HOST_OS=$(uname -s | tr '[:upper:]' '[:lower:]')
 
 export DOCKER_PLATFORM="${DOCKER_HOST_OS}/${DOCKER_HOST_ARCH}"
 
+echo "DOCKER_PLATFORM: $DOCKER_PLATFORM"
+
 # Forward all arguments to docker compose; default to "up" when no args given
 exec docker compose -f "$COMPOSE_FILE" "${@:-up}"

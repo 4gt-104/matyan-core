@@ -537,6 +537,9 @@ s3:
   # Must exist before deployment when using an external S3 provider.
   bucket: "matyan-artifacts"
 
+  # -- AWS region for S3 compatibility. Defaults to us-east-1.
+  region: "us-east-1"
+
   # -- Lifetime of presigned S3 upload URLs in seconds.
   # After this duration the URL expires and clients must request a new one.
   presignExpiry: 3600

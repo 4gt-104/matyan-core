@@ -70,6 +70,7 @@ Used by the **backend** process (REST API). Variables use the **uppercase field 
 | **S3_ACCESS_KEY** | `rustfsadmin` | S3 access key. In production must be set explicitly. |
 | **S3_SECRET_KEY** | `rustfsadmin` | S3 secret key. In production must be set explicitly. |
 | **S3_BUCKET** | `matyan-artifacts` | Bucket name for blob artifacts. |
+| **S3_REGION** | `us-east-1` | S3 compliance region. |
 
 ### Blob URI secret
 
@@ -166,6 +167,7 @@ Used by the **frontier** process (WebSocket + presign). Variables use the **uppe
 | **S3_ACCESS_KEY** | `rustfsadmin` | S3 access key. In production must be set explicitly. |
 | **S3_SECRET_KEY** | `rustfsadmin` | S3 secret key. In production must be set explicitly. |
 | **S3_BUCKET** | `matyan-artifacts` | Bucket name. |
+| **S3_REGION** | `us-east-1` | S3 compliance region. |
 | **S3_PRESIGN_EXPIRY** | `3600` | Presigned URL lifetime (seconds). |
 
 ### Shutdown and metrics

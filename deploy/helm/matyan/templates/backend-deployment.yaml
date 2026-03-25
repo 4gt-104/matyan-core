@@ -120,6 +120,8 @@ spec:
               value: {{ include "matyan.s3Endpoint" . | quote }}
             - name: S3_BUCKET
               value: {{ .Values.s3.bucket | quote }}
+            - name: S3_REGION
+              value: {{ .Values.s3.region | quote }}
             - name: KAFKA_BOOTSTRAP_SERVERS
               value: {{ include "matyan.kafkaBootstrapServers" . | quote }}
             - name: KAFKA_DATA_INGESTION_TOPIC
