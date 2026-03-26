@@ -101,6 +101,7 @@ services:
 
   rustfs-init:
     image: alpine:3.23.3
+    profiles: ["s3"]
     volumes:
       - rustfs-data-0:/data0
       - rustfs-data-1:/data1
@@ -111,6 +112,7 @@ services:
 
   rustfs:
     image: rustfs/rustfs:1.0.0-alpha.89
+    profiles: ["s3"]
     ports:
       - "9000:9000"                  # S3 API
       - "9001:9001"                  # web console
@@ -135,6 +137,27 @@ services:
       retries: 5
       start_period: 10s
 
+  fake-gcs-server:
+    image: fsouza/fake-gcs-server:latest
+    profiles: ["gcs"]
+    ports:
+      - "4443:4443"
+    command: -scheme http -public-host localhost:4443
+    volumes:
+      - gcs-data:/data
+
+  fake-gcs-server-init:
+    image: curlimages/curl:latest
+    profiles: ["gcs"]
+    depends_on:
+      fake-gcs-server:
+        condition: service_started
+    command: >
+      -v -X POST http://fake-gcs-server:4443/storage/v1/b
+      -H "Content-Type: application/json"
+      -d '{"name": "matyan-artifacts"}'
+    restart: "no"
+
   # --- Application ---
 
   backend:
@@ -153,6 +176,10 @@ services:
         condition: service_completed_successfully
       rustfs:
         condition: service_healthy
+        required: false
+      fake-gcs-server:
+        condition: service_started
+        required: false
     environment:
       FDB_CLUSTER_FILE: /var/fdb/fdb.cluster
       S3_ENDPOINT: http://rustfs:9000
@@ -160,6 +187,9 @@ services:
       S3_SECRET_KEY: rustfsadmin
       S3_BUCKET: matyan-artifacts
       S3_REGION: us-east-1
+      BLOB_BACKEND_TYPE: ${BLOB_BACKEND_TYPE:-s3}
+      GCS_BUCKET: matyan-artifacts
+      STORAGE_EMULATOR_HOST: "http://fake-gcs-server:4443"
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       CORS_ORIGINS: '["http://localhost:3000","http://localhost:8000","http://127.0.0.1:8000","http://localhost:53800"]'
     volumes:
@@ -192,6 +222,10 @@ services:
         condition: service_completed_successfully
       rustfs:
         condition: service_healthy
+        required: false
+      fake-gcs-server:
+        condition: service_started
+        required: false
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       S3_ENDPOINT: http://rustfs:9000
@@ -199,6 +233,9 @@ services:
       S3_SECRET_KEY: rustfsadmin
       S3_BUCKET: matyan-artifacts
       S3_REGION: us-east-1
+      BLOB_BACKEND_TYPE: ${BLOB_BACKEND_TYPE:-s3}
+      GCS_BUCKET: matyan-artifacts
+      STORAGE_EMULATOR_HOST: "http://fake-gcs-server:4443"
     restart: unless-stopped
     healthcheck:
       test:
@@ -228,6 +265,10 @@ services:
         condition: service_completed_successfully
       rustfs:
         condition: service_healthy
+        required: false
+      fake-gcs-server:
+        condition: service_started
+        required: false
     environment:
       FDB_CLUSTER_FILE: /var/fdb/fdb.cluster
       S3_ENDPOINT: http://rustfs:9000
@@ -256,6 +297,10 @@ services:
         condition: service_completed_successfully
       rustfs:
         condition: service_healthy
+        required: false
+      fake-gcs-server:
+        condition: service_started
+        required: false
     environment:
       FDB_CLUSTER_FILE: /var/fdb/fdb.cluster
       S3_ENDPOINT: http://rustfs:9000
@@ -263,6 +308,9 @@ services:
       S3_SECRET_KEY: rustfsadmin
       S3_BUCKET: matyan-artifacts
       S3_REGION: us-east-1
+      BLOB_BACKEND_TYPE: ${BLOB_BACKEND_TYPE:-s3}
+      GCS_BUCKET: matyan-artifacts
+      STORAGE_EMULATOR_HOST: "http://fake-gcs-server:4443"
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       METRICS_PORT: "9102"
     volumes:
@@ -303,3 +351,4 @@ volumes:
   rustfs-data-1:
   rustfs-data-2:
   rustfs-data-3:
+  gcs-data:

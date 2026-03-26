@@ -16,5 +16,24 @@ export DOCKER_PLATFORM="${DOCKER_HOST_OS}/${DOCKER_HOST_ARCH}"
 
 echo "DOCKER_PLATFORM: $DOCKER_PLATFORM"
 
+STORAGE_BACKEND="s3"
+
+args=()
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    --storage)
+      STORAGE_BACKEND="$2"
+      shift 2
+      ;;
+    *)
+      args+=("$1")
+      shift
+      ;;
+  esac
+done
+
+export COMPOSE_PROFILES="${STORAGE_BACKEND}"
+export BLOB_BACKEND_TYPE="${STORAGE_BACKEND}"
+
 # Forward all arguments to docker compose; default to "up" when no args given
-exec docker compose -f "$COMPOSE_FILE" "${@:-up}"
+exec docker compose -f "$COMPOSE_FILE" "${args[@]:-up}"
