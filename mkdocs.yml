@@ -83,6 +83,7 @@ nav:
   - Architecture: architecture.md
   - Deployment:
     - Production (Helm): deployment/production.md
+    - Cloud Blob Storage: deployment/cloud-storage.md
     - Periodic cleanup jobs (CronJobs): deployment/periodic-cleanup-jobs.md
   - Advanced:
     - Overview: advanced/index.md
