@@ -158,6 +158,15 @@ services:
       -d '{"name": "matyan-artifacts"}'
     restart: "no"
 
+  azurite:
+    image: mcr.microsoft.com/azure-storage/azurite
+    profiles: ["azure"]
+    ports:
+      - "10000:10000"
+    command: ["azurite", "--blobHost", "0.0.0.0", "--blobPort", "10000", "--location", "/workspace", "--skipApiVersionCheck"]
+    volumes:
+      - azurite-data:/workspace
+
   # --- Application ---
 
   backend:
@@ -180,6 +189,9 @@ services:
       fake-gcs-server:
         condition: service_started
         required: false
+      azurite:
+        condition: service_started
+        required: false
     environment:
       FDB_CLUSTER_FILE: /var/fdb/fdb.cluster
       S3_ENDPOINT: http://rustfs:9000
@@ -190,6 +202,8 @@ services:
       BLOB_BACKEND_TYPE: ${BLOB_BACKEND_TYPE:-s3}
       GCS_BUCKET: matyan-artifacts
       STORAGE_EMULATOR_HOST: "http://fake-gcs-server:4443"
+      AZURE_CONN_STR: "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://azurite:10000/devstoreaccount1;"
+      AZURE_CONTAINER: "matyan-artifacts"
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       CORS_ORIGINS: '["http://localhost:3000","http://localhost:8000","http://127.0.0.1:8000","http://localhost:53800"]'
     volumes:
@@ -226,6 +240,9 @@ services:
       fake-gcs-server:
         condition: service_started
         required: false
+      azurite:
+        condition: service_started
+        required: false
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       S3_ENDPOINT: http://rustfs:9000
@@ -236,6 +253,8 @@ services:
       BLOB_BACKEND_TYPE: ${BLOB_BACKEND_TYPE:-s3}
       GCS_BUCKET: matyan-artifacts
       STORAGE_EMULATOR_HOST: "http://fake-gcs-server:4443"
+      AZURE_CONN_STR: "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://azurite:10000/devstoreaccount1;"
+      AZURE_CONTAINER: "matyan-artifacts"
     restart: unless-stopped
     healthcheck:
       test:
@@ -267,6 +286,9 @@ services:
         condition: service_healthy
         required: false
       fake-gcs-server:
+        condition: service_started
+        required: false
+      azurite:
         condition: service_started
         required: false
     environment:
@@ -301,6 +323,9 @@ services:
       fake-gcs-server:
         condition: service_started
         required: false
+      azurite:
+        condition: service_started
+        required: false
     environment:
       FDB_CLUSTER_FILE: /var/fdb/fdb.cluster
       S3_ENDPOINT: http://rustfs:9000
@@ -311,6 +336,8 @@ services:
       BLOB_BACKEND_TYPE: ${BLOB_BACKEND_TYPE:-s3}
       GCS_BUCKET: matyan-artifacts
       STORAGE_EMULATOR_HOST: "http://fake-gcs-server:4443"
+      AZURE_CONN_STR: "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://azurite:10000/devstoreaccount1;"
+      AZURE_CONTAINER: "matyan-artifacts"
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       METRICS_PORT: "9102"
     volumes:
@@ -352,3 +379,4 @@ volumes:
   rustfs-data-2:
   rustfs-data-3:
   gcs-data:
+  azurite-data:

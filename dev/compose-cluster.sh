@@ -35,5 +35,7 @@ done
 export COMPOSE_PROFILES="${STORAGE_BACKEND}"
 export BLOB_BACKEND_TYPE="${STORAGE_BACKEND}"
 
+echo $BLOB_BACKEND_TYPE
+
 # Forward all arguments to docker compose; default to "up" when no args given
 exec docker compose -f "$COMPOSE_FILE" "${args[@]:-up}"
