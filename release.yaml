@@ -4,12 +4,12 @@
 
 images:
   # Image tag to use for matyan-backend (also applied to ingestionWorker and controlWorker).
-  backend: "0.2.1"
+  backend: "0.3.0"
   # Image tag to use for matyan-frontier.
-  frontier: "0.2.1"
+  frontier: "0.3.0"
   # Image tag to use for matyan-ui.
-  ui: "0.3.1"
+  ui: "0.3.2"
 
 helm:
   # Helm chart version (Chart.yaml .version). Bump when the chart structure changes.
-  version: "0.2.0"
+  version: "0.3.0"
