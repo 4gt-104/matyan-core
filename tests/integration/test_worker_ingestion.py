@@ -16,7 +16,7 @@ from aiokafka import AIOKafkaProducer
 
 import os
 
-KAFKA_BOOTSTRAP = os.environ.get("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
+KAFKA_BOOTSTRAP = os.environ.get("KAFKA_BOOTSTRAP_SERVERS", "localhost:9094")
 DATA_INGESTION_TOPIC = "data-ingestion"
 
 

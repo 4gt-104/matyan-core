@@ -16,7 +16,7 @@ import httpx
 import pytest
 from aiokafka import AIOKafkaProducer
 
-KAFKA_BOOTSTRAP_ENV = os.environ.get("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
+KAFKA_BOOTSTRAP_ENV = os.environ.get("KAFKA_BOOTSTRAP_SERVERS", "localhost:9094")
 DATA_INGESTION_TOPIC_ENV = "data-ingestion"
 
 
