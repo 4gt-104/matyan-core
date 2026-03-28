@@ -111,12 +111,12 @@ tests:
       - fixtures/base.yaml
     set:
       rustfs.install: false
-      s3.endpoint: "https://minio.internal:9000"
+      s3.endpoint: "https://rustfs.internal:9000"
       rustfs.s3Ingress.enabled: false
     asserts:
       - equal:
           path: spec.template.spec.containers[0].env[?(@.name=="S3_PUBLIC_ENDPOINT")].value
-          value: "https://minio.internal:9000"
+          value: "https://rustfs.internal:9000"
         template: templates/frontier-deployment.yaml
 
   - it: when rustfs.install=true but s3Ingress has empty hosts, public endpoint falls back to in-cluster endpoint

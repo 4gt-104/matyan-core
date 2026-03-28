@@ -3,15 +3,15 @@
 {{- $clusterFileDir := default (dir $fdbClient.clusterFilePath) $fdbClient.clusterFileDir -}}
 {{- $clusterFileName := default (base $fdbClient.clusterFilePath) $fdbClient.clusterFileName -}}
 {{- $clusterFilePath := printf "%s/%s" $clusterFileDir $clusterFileName -}}
-{{- $cfg := .Values.periodicJobs.cleanupOrphanS3 -}}
+{{- $cfg := .Values.periodicJobs.cleanupOrphanBlobs -}}
 {{- if and $cfg.enabled $cfg.schedule (include "matyan.fdbHaveClusterFile" .) }}
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: {{ include "matyan.fullname" . }}-cleanup-orphan-s3
+  name: {{ include "matyan.fullname" . }}-cleanup-orphan-blobs
   labels:
     {{- include "matyan.labels" . | nindent 4 }}
-    app.kubernetes.io/component: cleanup-orphan-s3
+    app.kubernetes.io/component: cleanup-orphan-blobs
   {{- with .Values.commonAnnotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
@@ -28,7 +28,7 @@ spec:
         metadata:
           labels:
             {{- include "matyan.selectorLabels" . | nindent 12 }}
-            app.kubernetes.io/component: cleanup-orphan-s3
+            app.kubernetes.io/component: cleanup-orphan-blobs
         spec:
           {{- with .Values.imagePullSecrets }}
           imagePullSecrets:
@@ -75,14 +75,14 @@ spec:
           {{- end }}
           restartPolicy: OnFailure
           containers:
-            - name: cleanup-orphan-s3
+            - name: cleanup-orphan-blobs
               {{ $base := .Values.controlWorker.image }}
               {{ $o := $cfg.image | default dict }}
               image: "{{ $o.repository | default $base.repository }}:{{ $o.tag | default $base.tag }}"
               imagePullPolicy: {{ $o.pullPolicy | default $base.pullPolicy }}
               command:
                 - matyan-backend
-                - cleanup-orphan-s3
+                - cleanup-orphan-blobs
               args:
                 {{- if $cfg.lockTtlSeconds }}
                 - --lock-ttl-seconds={{ $cfg.lockTtlSeconds }}
@@ -95,6 +95,8 @@ spec:
                   value: {{ $clusterFilePath | quote }}
                 - name: FDB_API_VERSION
                   value: {{ $fdbClient.apiVersion | quote }}
+                - name: BLOB_BACKEND_TYPE
+                  value: {{ .Values.blobBackendType | quote }}
                 - name: S3_ENDPOINT
                   value: {{ include "matyan.s3Endpoint" . | quote }}
                 - name: S3_BUCKET
@@ -117,6 +119,18 @@ spec:
                   value: {{ include "matyan.s3AccessKey" . | quote }}
                 - name: S3_SECRET_KEY
                   value: {{ include "matyan.s3SecretKey" . | quote }}
+                {{- end }}
+                {{- if .Values.gcs }}
+                - name: GCS_BUCKET
+                  value: {{ .Values.gcs.bucket | quote }}
+                {{- end }}
+                {{- if .Values.azure }}
+                - name: AZURE_CONTAINER
+                  value: {{ .Values.azure.container | quote }}
+                - name: AZURE_CONN_STR
+                  value: {{ .Values.azure.connStr | quote }}
+                - name: AZURE_ACCOUNT_URL
+                  value: {{ .Values.azure.accountUrl | quote }}
                 {{- end }}
               {{- if include "matyan.fdbHaveClusterFile" . }}
               volumeMounts:

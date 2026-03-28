@@ -11,17 +11,17 @@ High-level design of Matyan: storage, ingestion, and serving.
 | Service | Role |
 |---------|------|
 | **matyan-backend** | FastAPI REST API. Reads from FoundationDB; handles control operations (delete run, rename experiment, etc.) with synchronous FDB writes and Kafka events for async side effects. |
-| **matyan-frontier** | Ingestion gateway. WebSocket for metrics/params; presigned S3 URLs for large blobs. Publishes to Kafka only. |
+| **matyan-frontier** | Ingestion gateway. WebSocket for metrics/params; presigned URLs for large blobs (S3, GCS, Azure). Publishes to Kafka only. |
 | **ingestion-workers** | Consume `data-ingestion` topic; write runs, sequences, and metadata to FoundationDB. |
-| **control-workers** | Consume `control-events` topic; perform S3 cleanup and other side effects. |
+| **control-workers** | Consume `control-events` topic; perform cloud storage cleanup (S3, GCS, Azure) and other side effects. |
 | **matyan-client** | Python SDK. Sends tracking data to frontier; uses backend for metadata and queries. |
 | **matyan-ui** | React UI; talks to matyan-backend. |
 
 ## Data flow
 
 - **Reads:** UI or client → backend (REST) → FoundationDB.
-- **Writes (training):** Client → frontier (WebSocket or presigned S3) → Kafka → ingestion workers → FoundationDB (and S3 for blobs).
-- **Control:** UI → backend (REST) → FDB + Kafka control-events → control workers (e.g. S3 cleanup).
+- **Writes (training):** Client → frontier (WebSocket or presigned URLs) → Kafka → ingestion workers → FoundationDB (and S3/GCS/Azure for blobs).
+- **Control:** UI → backend (REST) → FDB + Kafka control-events → control workers (e.g. storage cleanup).
 
 ## Storage (FoundationDB)
 
@@ -49,7 +49,7 @@ All keys are under a single **runs** subspace. `run_hash` is the run’s unique 
 | Key tuple pattern | Description |
 |-------------------|-------------|
 | `(run_hash, "meta", <field>, "__leaf__")` | Run metadata: `name`, `description`, `created_at`, `updated_at`, `finalized_at`, `is_archived`, `active`, `experiment_id`, `client_start_ts`, `duration`, `pending_deletion`. Stored as a flat key per field (tree with leaf sentinel). |
-| `(run_hash, "attrs", <path...>, "__leaf__")` or list/dict sentinels | Run attributes (e.g. hyperparameters under `hparams`). Nested dicts/lists flattened; scalars use `__leaf__`. Special key `attrs.__blobs__` holds blob references. |
+| `(run_hash, "attrs", <path...>, "__leaf__")` or list/dict sentinels | Run attributes (e.g. hyperparameters under `hparams`). Nested dicts/lists flattened; scalars use `__leaf__`. Special key `attrs.__blobs__` holds blob references (S3/GCS/Azure keys). |
 | `(run_hash, "traces", ctx_id, name, "dtype")` | Trace metadata: `dtype`, optional `last`, `last_step` per (context_id, metric_name). |
 | `(run_hash, "contexts", ctx_id)` | Context dict for the given context id (deterministic id from context hash). |
 | `(run_hash, "tags", tag_uuid)` | Run–tag association (value is truthy; used for “this run has this tag”). |
@@ -125,5 +125,4 @@ Index entries live in the **indexes** subspace. Values are empty bytes; the payl
 ## Next
 
 - [Getting started](getting-started.md) — Run the stack locally.
-- [Advanced](advanced/index.md) — Per-component design and architectural decisions (backend, frontier, workers, FDB, Kafka, S3, UI, client SDK).
-- [API](api.md) — Endpoint reference.
+- [Advanced](advanced/index.md) — Per-component design and architectural decisions (backend, frontier, workers, FDB, Kafka, Cloud Storage, UI, client SDK).

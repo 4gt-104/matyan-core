@@ -8,8 +8,8 @@ The **matyan-backend** is the main REST API service. It serves all read traffic 
 
 ## Role
 
-- **Read path** — Queries from the UI (run list, metrics, custom objects, logs) and from the client (e.g. `Repo.iter_runs()`, `query_metrics()`) hit the backend. The backend reads from **FoundationDB** and, for blob content (images, audio, etc.), fetches bytes from **S3** and streams them back. No Kafka involvement on the read path.
-- **Control path** — Mutations initiated by the UI (delete run, archive, rename experiment, delete tag) are handled **synchronously** by the backend: it writes to FDB and publishes a **control event** to Kafka. Control workers consume that topic and perform **async side effects** (e.g. S3 blob cleanup after a run is deleted).
+- **Read path** — Queries from the UI (run list, metrics, custom objects, logs) and from the client (e.g. `Repo.iter_runs()`, `query_metrics()`) hit the backend. The backend reads from **FoundationDB** and, for blob content (images, audio, etc.), fetches bytes from **S3/GCS/Azure** and streams them back. No Kafka involvement on the read path.
+- **Control path** — Mutations initiated by the UI (delete run, archive, rename experiment, delete tag) are handled **synchronously** by the backend: it writes to FDB and publishes a **control event** to Kafka. Control workers consume that topic and perform **async side effects** (e.g. S3/GCS/Azure blob cleanup after a run is deleted).
 
 ## Architectural decisions
 
@@ -19,11 +19,11 @@ Reads and control operations share one API and one deployment. This keeps the AP
 
 ### Synchronous control writes to FDB
 
-When a user deletes a run or renames an experiment, the backend **immediately** updates FDB (e.g. marks the run as deleted, updates experiment name). The user sees the effect right away. This gives **immediate consistency** for control operations and keeps the UI responsive. Async work (S3 cleanup, index updates that are deferred) is handled by control workers so that the HTTP response is not blocked on slow or external operations.
+When a user deletes a run or renames an experiment, the backend **immediately** updates FDB (e.g. marks the run as deleted, updates experiment name). The user sees the effect right away. This gives **immediate consistency** for control operations and keeps the UI responsive. Async work (storage cleanup, index updates that are deferred) is handled by control workers so that the HTTP response is not blocked on slow or external operations.
 
 ### Control events to Kafka (not FDB-only)
 
-After writing the control mutation to FDB, the backend publishes a **control event** (e.g. `run_deleted`) to the **control-events** Kafka topic. Control workers consume these events and perform side effects (e.g. deleting blobs in S3 for the removed run). Doing this asynchronously avoids holding the HTTP request until S3 deletions finish and allows retries and backpressure if S3 or the worker is slow. The “authoritative” state (e.g. “run is deleted”) is already in FDB; Kafka is used only for **triggering side effects**.
+After writing the control mutation to FDB, the backend publishes a **control event** (e.g. `run_deleted`) to the **control-events** Kafka topic. Control workers consume these events and perform side effects (e.g. deleting blobs in S3/GCS/Azure for the removed run). Doing this asynchronously avoids holding the HTTP request until S3/GCS/Azure deletions finish and allows retries and backpressure if S3/GCS/Azure or the worker is slow. The “authoritative” state (e.g. “run is deleted”) is already in FDB; Kafka is used only for **triggering side effects**.
 
 ### Stateless, horizontally scalable
 
@@ -48,5 +48,5 @@ The backend reimplements the same REST and **binary streaming** endpoints as the
 
 - [FoundationDB](foundationdb.md) — Where backend reads and writes.
 - [Kafka](kafka.md) — Control-events topic produced by the backend.
-- [Workers](workers.md) — Control workers consume control-events and perform S3 cleanup.
-- [S3 and blobs](s3-blobs.md) — Backend fetches blob content from S3 for custom object endpoints.
+- [Workers](workers.md) — Control workers consume control-events and perform storage cleanup.
+- [Cloud blob storage](cloud-blob-storage.md) — Backend fetches blob content from S3/GCS/Azure for custom object endpoints.

@@ -10,7 +10,7 @@ The **matyan-ui** is the web frontend for browsing runs, metrics, custom objects
 
 - **Run management** — List runs, filter by experiment/tag/MatyanQL, open run detail, delete/archive runs, add/remove tags.
 - **Metrics and charts** — Query metrics, align series, render charts (using the same streaming and encoding contract as the original Aim UI).
-- **Custom objects** — Images, audio, text, distributions, figures: search, batch fetch, step-level view. Blob content is fetched via the backend (which reads from S3).
+- **Custom objects** — Images, audio, text, distributions, figures: search, batch fetch, step-level view. Blob content is fetched via the backend (which reads from S3/GCS/Azure).
 - **Logs** — Terminal log lines and structured log records, with range and level filters.
 - **Experiments, tags, dashboards** — CRUD and association to runs.
 
@@ -24,7 +24,7 @@ The UI does **not** connect to the frontier or any WebSocket for real-time inges
 
 - **Simpler deployment** — One API base URL (backend). No need to expose the frontier to the browser or to manage a second WebSocket endpoint for the UI.
 - **Security and topology** — The frontier is for **training clients** (ingestion). The UI is for **humans** (read and control). Keeping them separate lets you put the backend (and UI) behind one ingress and keep the frontier on a different network or port if desired.
-- **Consistency** — All data the UI shows comes from the backend, which reads from FDB (and S3 for blobs). So the UI always sees a consistent view of “what’s stored,” regardless of ingestion lag. Live training progress is reflected only after ingestion workers have written to FDB; the UI does not need a live stream of every metric point.
+- **Consistency** — All data the UI shows comes from the backend, which reads from FDB (and S3/GCS/Azure for blobs). So the UI always sees a consistent view of “what’s stored,” regardless of ingestion lag. Live training progress is reflected only after ingestion workers have written to FDB; the UI does not need a live stream of every metric point.
 
 ### Polling for updates (no WebSocket to backend)
 
@@ -55,5 +55,5 @@ The default Helm chart does not implement authentication. The UI and backend are
 ## Related
 
 - [Backend](backend.md) — The only service the UI talks to.
-- [Architecture](../architecture.md) — High-level data flow (UI → backend → FDB/S3).
+- [Architecture](../architecture.md) — High-level data flow (UI → backend → FDB/S3/GCS/Azure).
 - [Matyan UI overview](../ui/overview.md) — User-facing UI features and access.

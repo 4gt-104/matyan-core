@@ -9,8 +9,8 @@ The **matyan-frontier** is the **ingestion gateway** for training clients. It ac
 ## Role
 
 - **WebSocket** — Clients open a WebSocket to the frontier per run (e.g. `WS /api/v1/ws/runs/{run_id}`) and send JSON messages: create run, log metric, log hyperparameters, finish run, log terminal lines, log records, set run properties, add/remove tags. The frontier validates each message, wraps it in an **IngestionMessage** envelope, and publishes to the **data-ingestion** Kafka topic (partitioned by `run_id`).
-- **Presigned S3 URLs** — For large blobs (images, audio, artifacts), the client calls `POST /api/v1/rest/artifacts/presign`. The frontier generates a presigned S3 PUT URL and publishes a **blob_ref** message to Kafka so that ingestion workers can record the S3 key in FDB after the client uploads. The client then uploads the blob directly to S3; the frontier does not stream blob bytes.
-- **No storage** — The frontier does not write to FDB or S3. It only produces to Kafka. All persistence is done by **ingestion workers** and the **backend** (for control).
+- **Presigned blob URLs** — For large blobs (images, audio, artifacts), the client calls `POST /api/v1/rest/artifacts/presign`. The frontier generates a presigned blob PUT URL and publishes a **blob_ref** message to Kafka so that ingestion workers can record the blob key in FDB after the client uploads. The client then uploads the blob directly to the blob storage; the frontier does not stream blob bytes.
+- **No storage** — The frontier does not write to FDB or blob storage. It only produces to Kafka. All persistence is done by **ingestion workers** and the **backend** (for control).
 
 ## Architectural decisions
 
@@ -24,7 +24,7 @@ Metrics and params are sent as small JSON messages at high frequency. WebSocket 
 
 ### Presigned URLs for large blobs
 
-Blob payloads (images, audio, figures) can be large. Sending them through the frontier would require the frontier to buffer and forward to S3 or Kafka, increasing latency and memory. Instead, the frontier issues a **presigned S3 PUT URL**; the client uploads directly to S3. The frontier only publishes a **blob_ref** (bucket, key, run, sequence, etc.) to Kafka so that workers can write the reference into FDB. This keeps the frontier lightweight and avoids double bandwidth (client → frontier → S3).
+Blob payloads (images, audio, figures) can be large. Sending them through the frontier would require the frontier to buffer and forward to S3/GCS/Azure or Kafka, increasing latency and memory. Instead, the frontier issues a **presigned S3/GCS/Azure PUT URL**; the client uploads directly to S3/GCS/Azure. The frontier only publishes a **blob_ref** (bucket, key, run, sequence, etc.) to Kafka so that workers can write the reference into FDB. This keeps the frontier lightweight and avoids double bandwidth (client → frontier → S3/GCS/Azure).
 
 ### Stateless, horizontally scalable
 
@@ -45,5 +45,5 @@ The WebSocket message types and REST presign endpoint are designed so that **mat
 
 - [Kafka](kafka.md) — data-ingestion topic produced by the frontier.
 - [Workers](workers.md) — Ingestion workers consume from data-ingestion and write to FDB.
-- [S3 and blobs](s3-blobs.md) — Presigned URLs and blob_ref flow.
+- [Cloud blob storage](cloud-blob-storage.md) — Presigned URLs and blob_ref flow.
 - [Client SDK](client-sdk.md) — How the client talks to the frontier (WebSocket + REST).

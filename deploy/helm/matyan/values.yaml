@@ -198,9 +198,9 @@ rustfs:
   # When rustfs.install is true, these are also used by all matyan services as
   # the effective S3 access key and secret key (s3.accessKey/secretKey are ignored).
   auth:
-    # -- Root access key (equivalent to MinIO's MINIO_ROOT_USER).
+    # -- Root access key.
     accessKey: "rustfsadmin"
-    # -- Root secret key (equivalent to MinIO's MINIO_ROOT_PASSWORD).
+    # -- Root secret key.
     secretKey: "rustfsadmin"
 
   # -- RustFS deployment mode. Standalone (single replica, local path) is the default and
@@ -516,11 +516,14 @@ fdbClient:
 #   2. accessKey / secretKey (plaintext in values).
 #   3. If rustfs.install is true, rustfs.auth.accessKey/secretKey are used instead
 #      and accessKey/secretKey here are ignored.
+# -- Active blob storage backend: s3, gcs, or azure.
+blobBackendType: "s3"
+
 s3:
   # -- Internal S3 endpoint used by backend and frontier pods to connect to the object store.
   # When rustfs.install is true, auto-set to the in-cluster RustFS service; leave empty.
   # For external S3 (rustfs.install false), set to the full URL including scheme and port,
-  # e.g. "https://s3.amazonaws.com" or "http://minio.example.com:9000".
+  # e.g. "https://s3.amazonaws.com" or "http://rustfs.example.com:9000".
   endpoint: ""
 
   # -- Public S3 endpoint embedded in presigned upload URLs returned to training clients.
@@ -562,6 +565,19 @@ s3:
 
   # -- Key inside existingSecret that holds the S3 secret key.
   secretKeyKey: "s3-secret-key"
+
+gcs:
+  # -- GCS bucket name for all blob artifacts. Credentials should be provided via ADC
+  # (e.g. Workload Identity) or by passing GOOGLE_APPLICATION_CREDENTIALS in extraEnv.
+  bucket: "matyan-artifacts"
+
+azure:
+  # -- Azure Blob Storage container name for all blob artifacts.
+  container: "matyan-artifacts"
+  # -- Azure connection string. Use either this or accountUrl.
+  connStr: ""
+  # -- Azure storage account URL (for Managed Identity / DefaultAzureCredential).
+  accountUrl: ""
 
   # -- Image used by the s3-init-job to create the S3 bucket on install/upgrade.
   # Only runs when rustfs.install is true. Uses the MinIO client (mc) CLI.
@@ -721,7 +737,7 @@ backend:
 # -- Frontier ingestion gateway deployment configuration.
 # The frontier is the client-facing entry point for training data ingestion.
 # It accepts WebSocket connections from matyan-client instances and forwards
-# data to Kafka. It also generates presigned S3 URLs for large blob uploads.
+# data to Kafka. It also generates presigned blob URLs for large blob uploads.
 frontier:
   # -- Log level for the frontier process (loguru + uvicorn).
   # Valid values: TRACE, DEBUG, INFO, WARNING, ERROR, CRITICAL.
@@ -998,9 +1014,9 @@ controlWorker:
 # Uses the same FDB and S3 configuration as the control worker. Set schedule to empty
 # to disable a CronJob without removing the block (e.g. override in a env-specific values file).
 periodicJobs:
-  # -- Orphan S3 cleanup: delete S3 objects for runs that have a deletion tombstone.
-  cleanupOrphanS3:
-    # -- Create a CronJob that runs cleanup-orphan-s3.
+  # -- Orphan blob cleanup: delete objects from all backends (S3, GCS, Azure) for runs that have a deletion tombstone.
+  cleanupOrphanBlobs:
+    # -- Create a CronJob that runs cleanup-orphan-blobs.
     enabled: true
     # -- Cron schedule (e.g. "0 3 * * *" for daily at 03:00). Required when enabled.
     schedule: "0 3 * * *"

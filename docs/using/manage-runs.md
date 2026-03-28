@@ -15,13 +15,15 @@ from matyan_client import Run
 
 run = Run(
     repo="http://localhost:53800",  # backend URL
+    frontier_url="http://localhost:53801",  # frontier URL
     experiment="experiment_name",
     system_tracking_interval=10,    # seconds; set to None to disable
     capture_terminal_logs=True,     # default True
 )
 ```
 
-- **repo** — Backend URL (or set `MATYAN_BACKEND_URL`). The client also uses the frontier URL for tracking (from `MATYAN_FRONTIER_URL` or config).
+- **repo** — Backend URL (or set `MATYAN_BACKEND_URL`).
+- **frontier_url** — Frontier URL (or set `MATYAN_FRONTIER_URL`).
 - **experiment** — Experiment name to group runs.
 - **system_tracking_interval** — Interval for CPU/GPU/memory tracking; `None` to disable.
 - **capture_terminal_logs** — Whether to capture and send stdout/stderr to the UI.
@@ -35,7 +37,7 @@ Each run has a unique `hash`. To continue logging to an existing run, pass `run_
 ```python
 from matyan_client import Run
 
-run = Run(run_hash="existing_run_hash", repo="http://localhost:53800")
+run = Run(run_hash="existing_run_hash")
 run.track(0.5, name="loss", step=100)
 run.close()
 ```
@@ -51,14 +53,14 @@ Delete runs via the **backend API** or the SDK.
 ```python
 from matyan_client import Repo
 
-repo = Repo("http://localhost:53800")
+repo = Repo()
 repo.delete_run("run_hash")
 repo.delete_runs(["run_hash_1", "run_hash_2"])
 ```
 
 **Using the CLI** (backend/HTTP): use the backend’s run-delete endpoint (e.g. `DELETE /api/v1/runs/{run_hash}`) or any wrapper script that calls it.
 
-Deleting a run removes it from FoundationDB and triggers async cleanup (e.g. S3 blobs) via control workers.
+Deleting a run removes it from FoundationDB and triggers async cleanup (e.g. blobs) via control workers.
 
 ## Pruning / cleanup
 
@@ -66,7 +68,7 @@ Indexes and metadata are maintained by the backend and workers; there is no sepa
 
 ## Backup and restore
 
-Data lives in FoundationDB and S3 on the server. There are two ways to create a backup:
+Data lives in FoundationDB and blob storage on the server. There are two ways to create a backup:
 
 - **`matyan-client backup`** (client CLI, no server access needed) — exports runs via the backend REST API. Supports filtering by run hashes, experiment, or creation date; optionally downloads blobs; can produce a `.tar.gz` archive.
 
@@ -75,9 +77,9 @@ Data lives in FoundationDB and S3 on the server. There are two ways to create a 
     matyan-client backup ./backups/ --experiment baseline    # one experiment
     matyan-client backup ./backups/ --since 2024-01-01       # runs created after a date
     matyan-client backup ./backups/ --compress               # produce .tar.gz
-    matyan-client backup ./backups/ --no-blobs               # skip S3 blobs
+    matyan-client backup ./backups/ --no-blobs               # skip blobs
     ```
 
 - **`matyan-backend backup`** — server-side backup with direct FDB access (requires access to the server).
 
-To restore, use **`matyan-client restore-reingest`** (replay through the ingestion pipeline, works with backups from either source) or **`matyan-backend restore`** (direct write into FDB + S3). See [Backups and restore](backups-and-restore.md) for the full workflow.
+To restore, use **`matyan-client restore-reingest`** (replay through the ingestion pipeline, works with backups from either source) or **`matyan-backend restore`** (direct write into FDB + blob storage). See [Backups and restore](backups-and-restore.md) for the full workflow.

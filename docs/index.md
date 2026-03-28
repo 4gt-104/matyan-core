@@ -32,7 +32,7 @@ icon: material/rocket
 - **Lightweight client** — `matyan-client` has minimal core dependencies (no ML frameworks by default); image, audio, figure, and framework adapters (PyTorch, Keras, etc.) are **optional extras** so you only install what you need.
 - **Scalable storage** — FoundationDB instead of RocksDB/SQLite; horizontally scalable, transactional.
 - **Decoupled UI** — React-based Aim UI served separately; backend is a stateless REST API.
-- **Async ingestion** — Training clients send data to a **frontier** (WebSocket + presigned S3); Kafka and workers write to FDB. No direct DB access from clients.
+- **Async ingestion** — Training clients send data to a **frontier** (WebSocket + presigned blob url); Kafka and workers write to FDB. No direct DB access from clients.
 - **Index-accelerated search** — Tier 1 (experiment, tag, archived, etc.) and Tier 2 (hyperparameter) indexes; MatyanQL runs as index scan + in-memory filter.
 - **Full artifact support** — Metrics, hyperparameters, images, audio, figures, distributions, text, terminal logs, and structured log records.
 - **Python-only backend** — FastAPI, aiokafka, FoundationDB Python bindings, boto3; no Cython, no embedded C.
@@ -41,7 +41,7 @@ icon: material/rocket
 
 ### Run the full stack (Docker Compose)
 
-Infrastructure (FoundationDB, Kafka, MinIO) plus backend, frontier, and workers:
+Infrastructure (FoundationDB, Kafka, RustFS) plus backend, frontier, and workers:
 
 ```bash
 git clone https://github.com/4gt-104/matyan-core.git
@@ -49,7 +49,7 @@ cd matyan-core
 ./dev/compose-cluster.sh up -d
 ```
 
-Then open the UI (default: backend on port 53800, UI may be served separately — see [Getting started](getting-started.md)).
+Then open the UI (default: `http://localhost:8000`).
 
 ### Python client (track from your training code)
 
@@ -60,8 +60,6 @@ python3 -m pip install matyan-client
 # or with uv:
 uv add matyan-client
 ```
-
-Optional: set `MATYAN_FRONTIER_URL` and `MATYAN_BACKEND_URL` (e.g. `http://localhost:53801`, `http://localhost:53800`) if not using defaults.
 
 ## 🚀 Quick Start
 
@@ -100,13 +98,16 @@ See [Getting started](getting-started.md) for detailed setup and [Architecture](
 
 | Component | Role |
 |-----------|------|
-| **matyan-backend** | REST API: reads and control operations (delete run, rename experiment). Reads from FoundationDB; control writes emit Kafka events for async side effects (e.g. S3 cleanup). |
-| **matyan-frontier** | Ingestion gateway: WebSocket for metrics/params, presigned S3 URLs for large blobs. Publishes to Kafka only. |
-| **Workers** | Kafka consumers: *ingestion* (data → FDB), *control* (control-events → S3 cleanup, etc.). |
+| **matyan-backend** | REST API: reads and control operations (delete run, rename experiment). Reads from FoundationDB; control writes emit Kafka events for async side effects (e.g. storage cleanup). |
+| **matyan-frontier** | Ingestion gateway: WebSocket for metrics/params, presigned blob URLs for large blobs. Publishes to Kafka only. |
+| **Workers** | Kafka consumers: *ingestion* (data → FDB), *control* (control-events → storage cleanup, etc.). |
 | **matyan-client** | Python SDK; same API as Aim. Uses frontier for tracking, backend for metadata and queries. |
-| **matyan-ui** | Aim React UI; talks to matyan-backend. |
+| **matyan-ui** | Matyan React UI; talks to matyan-backend. |
 
-**Data flow:** Reads: UI → backend → FoundationDB. Writes: client → frontier → Kafka → workers → FoundationDB (and S3 for blobs).
+**Data flow:**
+
+- Reads: UI → backend → FoundationDB.
+- Writes: client → frontier → Kafka → workers → FoundationDB (and S3/GCS/Azure for blobs).
 
 ## 📚 Documentation
 
@@ -115,9 +116,8 @@ See [Getting started](getting-started.md) for detailed setup and [Architecture](
 - [Matyan UI](ui/overview.md) — Explorers and run management (same as Aim UI).
 - [Understanding Matyan](understanding/overview.md) — Concepts, [data storage](understanding/data-storage.md).
 - [Architecture](architecture.md) — Components and data flow in detail.
-- [Advanced](advanced/index.md) — Component-level design: [Backend](advanced/backend.md), [Frontier](advanced/frontier.md), [Workers](advanced/workers.md), [FoundationDB](advanced/foundationdb.md), [Kafka](advanced/kafka.md), [S3 and blobs](advanced/s3-blobs.md), [UI](advanced/ui.md), [Client SDK](advanced/client-sdk.md).
+- [Advanced](advanced/index.md) — Component-level design: [Backend](advanced/backend.md), [Frontier](advanced/frontier.md), [Workers](advanced/workers.md), [FoundationDB](advanced/foundationdb.md), [Kafka](advanced/kafka.md), [S3/GCS/Azure and blobs](advanced/cloud-blob-storage.md), [UI](advanced/ui.md), [Client SDK](advanced/client-sdk.md).
 - [Production deployment](deployment/production.md) — Deploy to Kubernetes with the Helm chart (values, secrets, scaling).
-- [API](api.md) — REST and streaming endpoints.
 - [References](refs/cli.md) — [Glossary](glossary.md) (key terms: Run, Repo, sequence, context, MatyanQL), [CLI](refs/cli.md) (backend, frontier, workers), [SDK](refs/sdk.md) (matyan_client), [Environment variables](refs/env-variables.md) (all components).
 
 ## 🤝 Contributing

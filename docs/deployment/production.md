@@ -10,10 +10,10 @@ This page describes how to deploy Matyan to Kubernetes in production using the *
 
 The Helm chart lives at `deploy/helm/matyan/`. It:
 
-- **Always deploys** (when enabled): backend (REST API), frontier (ingestion gateway), UI (React app), ingestion workers (Kafka → FDB), control workers (control-events → S3 cleanup).
+- **Always deploys** (when enabled): backend (REST API), frontier (ingestion gateway), UI (React app), ingestion workers (Kafka → FDB), control workers (control-events → storage cleanup).
 - **Optionally deploys** (via subcharts): Kafka (Bitnami), S3-compatible store (RustFS), FoundationDB operator and cluster. These are **enabled by default** for a self-contained install. For production with external services, disable each subchart by setting the corresponding `*.install: false`.
 
-All application services are **stateless** and can be scaled by increasing `replicaCount`. The chart creates Deployments, Services, optional Ingress, optional ServiceMonitors, and optional **CronJobs** for periodic cleanup (orphan S3 deletion, tombstone removal). See [Periodic cleanup jobs (CronJobs)](periodic-cleanup-jobs.md) for how to enable and configure them.
+All application services are **stateless** and can be scaled by increasing `replicaCount`. The chart creates Deployments, Services, optional Ingress, optional ServiceMonitors, and optional **CronJobs** for periodic cleanup (orphan blob deletion, tombstone removal). See [Periodic cleanup jobs (CronJobs)](periodic-cleanup-jobs.md) for how to enable and configure them.
 
 ## Prerequisites
 
@@ -21,7 +21,7 @@ All application services are **stateless** and can be scaled by increasing `repl
 - **Helm** 3.10+
 - A **FoundationDB** cluster reachable from the cluster (or deploy via the chart with `fdb-cluster.install: true` and the FDB operator).
 - A **Kafka** broker (or deploy via the chart with `kafka.install: true`).
-- An **S3-compatible** object store for blob artifacts (or deploy RustFS with `rustfs.install: true`).
+- A **Cloud Blob Storage** backend (S3-compatible, GCS, or Azure Blob Storage).
 - (Recommended) An **ingress controller** (e.g. ingress-nginx, Traefik) and TLS certificates (e.g. cert-manager) for exposing the UI and backend.
 
 Before first install, fetch chart dependencies:
@@ -66,7 +66,7 @@ To publish a new chart version: run `./scripts/publish-helm-to-gh-pages.sh` from
 - **rustfs.install**: `true` — deploys an in-cluster RustFS (S3-compatible) store. Set `false` and configure `s3.*` to use an external S3.
 - **fdb-operator.install**: `true` — deploys the FDB operator. Set `false` if the operator is already installed cluster-wide.
 - **fdb-cluster.install**: `true` — creates a FoundationDBCluster CR. Set `false` to supply the FDB cluster file yourself via `existingConfigMap`, `existingSecret`, or `clusterFileContent`.
-- **periodicJobs.cleanupOrphanS3.enabled** / **periodicJobs.cleanupTombstones.enabled**: `true` — periodic cleanup CronJobs are on by default. Set `enabled: false` or `schedule: ""` to disable.
+- **periodicJobs.cleanupOrphanBlobs.enabled** / **periodicJobs.cleanupTombstones.enabled**: `true` — periodic cleanup CronJobs are on by default. Set `enabled: false` or `schedule: ""` to disable.
 - **backend.hostBase**, **ui.hostBase**: `""` — **required**; you must set these to the public URLs (e.g. `https://api.matyan.example.com`, `https://matyan.example.com`).
 - **ingress.enabled**: `false` — enable and configure when you want the chart to create the Ingress.
 
@@ -118,12 +118,15 @@ If you deploy FDB via the chart (**fdb-operator.install** and **fdb-cluster.inst
 
 The chart creates no Kafka topics when using an external broker; ensure the topics **data-ingestion** and **control-events** exist (and partition counts match your expectations). The **kafka-init-job** only runs when `kafka.install` is true and creates these topics in-cluster.
 
-### 4. S3 (blob storage)
+### 4. Cloud Blob Storage (S3, GCS, Azure)
 
-- **s3.endpoint** — Internal endpoint URL used by backend and frontier pods (e.g. `https://s3.amazonaws.com` or `http://minio.example.svc:9000`). **Required** when `rustfs.install` is false.
-- **s3.bucket** — Bucket name (default `matyan-artifacts`). The bucket must exist when using an external S3; the **s3-init-job** only runs when `rustfs.install` is true.
+Configure the active storage backend via **blobBackendType** (`s3`, `gcs`, or `azure`).
+
+- **s3.endpoint** — Internal endpoint URL used by backend and frontier pods (e.g. `https://s3.amazonaws.com` or `http://rustfs.example.svc:9000`). **Required** when `rustfs.install` is false and `blobBackendType` is `s3`.
+- **s3.bucket**, **gcs.bucket**, **azure.container** — Bucket or container name (default `matyan-artifacts`).
 - **s3.publicEndpoint** — Optional; public URL used in **presigned upload URLs** returned to training clients. Must be reachable from outside the cluster. If unset, the chart may derive it from RustFS S3 Ingress when RustFS is in use; otherwise presigned URLs use `s3.endpoint` (which may not be reachable from clients).
-- **s3.existingSecret** — **Recommended.** Name of a Secret with S3 credentials. Keys default to **s3.accessKeyKey** / **s3.secretKeyKey** (e.g. `s3-access-key`, `s3-secret-key`). If not set, you must set **s3.accessKey** and **s3.secretKey** (plaintext; avoid in production).
+- **s3.existingSecret** — **Recommended.** Name of a Secret with S3 credentials. Keys default to **s3.accessKeyKey** / **s3.secretKeyKey** (e.g. `s3-access-key`, `s3-secret-key`).
+- **azure.connStr**, **azure.accountUrl** — Connection string or account URL for Azure Blob Storage.
 
 ### 5. Blob URI secret (required for stable blob URLs)
 
@@ -160,7 +163,7 @@ The chart builds Ingress rules from **ui.hostBase** and **backend.hostBase**: sa
 | **Secrets** | Not created for credentials; you create S3, Kafka SASL, blob-uri, and optionally UI API token secrets and reference them via `existingSecret`. |
 | **Ingress** | One Ingress with rules for UI and backend (and frontier paths) when **ingress.enabled** is true. |
 | **Jobs** | **kafka-init-job** (post-install/upgrade hook) when `kafka.install` is true; **s3-init-job** when `rustfs.install` is true. |
-| **CronJobs** | **cleanup-orphan-s3**, **cleanup-tombstones** when **periodicJobs.***.**enabled** and **schedule** are set. |
+| **CronJobs** | **cleanup-orphan-blobs**, **cleanup-tombstones** when **periodicJobs.***.**enabled** and **schedule** are set. |
 | **ServiceMonitors** | One per service when **metrics.serviceMonitor.enabled** is true (requires Prometheus Operator CRDs). |
 | **Subcharts** | FDB operator, Kafka (Bitnami), RustFS — only when the corresponding `*.install` is true. |
 
@@ -198,7 +201,7 @@ Backend and frontier expose readiness probes. From inside the cluster (or via po
 # Backend: readiness checks FDB + Kafka
 kubectl exec -n NAMESPACE deploy/RELEASE_NAME-backend -- curl -s -o /dev/null -w "%{http_code}" http://localhost:53800/health/ready/
 
-# Frontier: readiness checks Kafka + S3
+# Frontier: readiness checks Kafka + Blob Storage
 kubectl exec -n NAMESPACE deploy/RELEASE_NAME-frontier -- curl -s -o /dev/null -w "%{http_code}" http://localhost:53801/health/ready/
 ```
 
@@ -261,7 +264,7 @@ blobUriSecret:
 
 The chart creates two CronJobs that run the backend CLI. Both are **enabled by default**:
 
-- **cleanupOrphanS3** — Deletes S3 objects for runs that have a deletion tombstone in FDB (e.g. if control-worker never processed the event). Default schedule: daily at 03:00 (`"0 3 * * *"`).
+- **cleanupOrphanBlobs** — Deletes objects from blob backend (S3, GCS, Azure) for runs that have a deletion tombstone in FDB (e.g. if control-worker never processed the event). Default schedule: daily at 03:00 (`"0 3 * * *"`).
 - **cleanupTombstones** — Removes old deletion tombstones from FDB so the `_deleted` index does not grow. Default schedule: weekly Sunday at 04:00 (`"0 4 * * 0"`).
 
 To disable a job set `periodicJobs.<name>.enabled: false` (or `schedule: ""`). Optional settings (lock TTL, limits) are documented in `values.yaml` under **periodicJobs.***.

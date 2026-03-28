@@ -13,7 +13,7 @@ Matyan uses **two topics**:
 | Topic | Producer(s) | Consumer(s) | Purpose |
 |-------|-------------|--------------|---------|
 | **data-ingestion** | Frontier | Ingestion workers | High-volume: create run, log metric, log params, blob ref, log terminal line, log record, set run property, add/remove tag, finish run. |
-| **control-events** | Backend | Control workers | Low-volume: run_deleted, experiment_deleted, tag_deleted, run_archived (for async side effects like S3 cleanup). |
+| **control-events** | Backend | Control workers | Low-volume: run_deleted, experiment_deleted, tag_deleted, run_archived (for async side effects like S3/GCS/Azure cleanup). |
 
 No other topics are required for core behavior. Optional internal topics (e.g. for auditing) could be added without changing this design.
 
@@ -38,7 +38,7 @@ The frontier uses **run_id** as the Kafka message key for data-ingestion. So:
 Kafka gives at-least-once delivery when consumers commit offsets after processing. Messages can be redelivered after a crash. Therefore:
 
 - **Ingestion workers** — Handlers must be idempotent or safe to retry (e.g. “create run” is no-op if run exists; “append sequence step” with deterministic step identity can be deduplicated or overwritten).
-- **Control workers** — Side effects like “delete S3 prefix for run X” are idempotent (deleting again is harmless). No need for exactly-once semantics for these operations.
+- **Control workers** — Side effects like “delete S3/GCS/Azure prefix for run X” are idempotent (deleting again is harmless). No need for exactly-once semantics for these operations.
 
 Exactly-once Kafka semantics are not required for Matyan’s current design; at-least-once plus idempotent processing is sufficient.
 

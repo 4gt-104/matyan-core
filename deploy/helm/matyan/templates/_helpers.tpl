@@ -39,7 +39,8 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 
 
 {{- define "matyan.fdbOperatorProvidesCluster" -}}
-{{- if and (index .Values "fdb-operator").install (index .Values "fdb-cluster").install }}true{{ end -}}
+{{- $fdb := index .Values "fdb-cluster" -}}
+{{- if and (index .Values "fdb-operator").install $fdb.install (not $fdb.clusterFileContent) (not $fdb.existingConfigMap) (not $fdb.existingSecret) }}true{{ end -}}
 {{- end -}}
 
 {{- define "matyan.fdbHaveClusterFile" -}}
@@ -86,21 +87,21 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
 {{- define "matyan.kafkaSecurityProtocol" -}}
-{{- if .Values.kafka.install -}}
+{{- if or (not .Values.kafka.install) .Values.kafkaClient.bootstrapServers -}}
+{{- .Values.kafkaClient.securityProtocol -}}
+{{- else -}}
 {{- $protocol := .Values.kafka.listeners.client.protocol -}}
 {{- if and $protocol (ne $protocol "PLAINTEXT") -}}{{- $protocol -}}{{- end -}}
-{{- else -}}
-{{- .Values.kafkaClient.securityProtocol -}}
 {{- end -}}
 {{- end -}}
 
 {{- define "matyan.kafkaSaslMechanism" -}}
-{{- if .Values.kafka.install -}}
+{{- if or (not .Values.kafka.install) .Values.kafkaClient.bootstrapServers -}}
+{{- .Values.kafkaClient.saslMechanism -}}
+{{- else if .Values.kafka.auth.enabled -}}
 {{- with .Values.kafka.sasl.enabledMechanisms -}}
 {{- . | splitList "," | first | trim -}}
 {{- end -}}
-{{- else -}}
-{{- .Values.kafkaClient.saslMechanism -}}
 {{- end -}}
 {{- end -}}
 

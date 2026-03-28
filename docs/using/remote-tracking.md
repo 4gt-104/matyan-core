@@ -8,9 +8,9 @@ Matyan is built for **remote** tracking: training runs send data to a central **
 
 ## Overview
 
-- **Frontier** — Ingestion gateway. Accepts WebSocket connections from clients for metrics, params, and small payloads; issues presigned S3 URLs for large blobs. Publishes all incoming data to **Kafka**.
-- **Backend** — REST API for reads and control (delete run, rename experiment, etc.). Reads from **FoundationDB**; writes go to FDB and emit Kafka events for async side effects (e.g. S3 cleanup).
-- **Workers** — Consume Kafka: **ingestion** workers write to FDB (and S3 refs); **control** workers perform cleanup and other side effects.
+- **Frontier** — Ingestion gateway. Accepts WebSocket connections from clients for metrics, params, and small payloads; issues presigned blob URLs for large blobs. Publishes all incoming data to **Kafka**.
+- **Backend** — REST API for reads and control (delete run, rename experiment, etc.). Reads from **FoundationDB**; writes go to FDB and emit Kafka events for async side effects (e.g. blob storage cleanup).
+- **Workers** — Consume Kafka: **ingestion** workers write to FDB (and blob storage refs); **control** workers perform cleanup and other side effects.
 
 Clients never talk to Kafka or FDB directly. They only need the **frontier URL** (for tracking) and **backend URL** (for metadata and queries).
 
@@ -54,7 +54,7 @@ For production, put the frontier and backend behind TLS-terminating proxies (or 
 
 ## Summary
 
-- **No local repo** — All data is stored on the server (FDB + S3).
-- **Frontier** — WebSocket + presigned S3; publishes to Kafka.
+- **No local repo** — All data is stored on the server (FDB + blob storage).
+- **Frontier** — WebSocket + presigned blob urls; publishes to Kafka.
 - **Backend** — REST API; reads/writes FDB; emits control events to Kafka.
-- **Workers** — Consume Kafka and persist to FDB (and S3). No client configuration needed beyond frontier and backend URLs.
+- **Workers** — Consume Kafka and persist to FDB (and blob storage). No client configuration needed beyond frontier and backend URLs.

@@ -90,4 +90,4 @@ Matplotlib figures are also supported (converted via Plotly under the hood).
 
 ## Artifacts
 
-Use `run.log_artifact(path)` or `run.log_artifacts(directory)` to log files. Matyan stores artifact metadata and uses presigned S3 URLs (via the frontier) for blob uploads. See [Artifacts](../using/artifacts.md).
+Use `run.log_artifact(path)` or `run.log_artifacts(directory)` to log files. Matyan stores artifact metadata and uses presigned blob URLs (via the frontier) for blob uploads. See [Artifacts](../using/artifacts.md).

@@ -30,7 +30,7 @@ For all options and URL resolution, see [Configure runs](../using/configure-runs
 
 - **track(value, name=..., step=..., context=..., epoch=...)** — Log a metric or object.
 - **add_tag(tag)** / **remove_tag(tag)** — Tags (via backend).
-- **log_artifact(path, name=...)** / **log_artifacts(dir, name=...)** — Upload files to S3 via presigned URLs.
+- **log_artifact(path, name=...)** / **log_artifacts(dir, name=...)** — Upload files to S3/GCS/Azure via presigned URLs.
 - **log_info(msg)** / **log_warning(msg)** / **log_error(msg)** / **log_debug(msg)** — Log messages.
 - **close()** — Flush and mark run finished.
 

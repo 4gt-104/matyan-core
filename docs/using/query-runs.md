@@ -37,7 +37,3 @@ for run_metrics in repo.query_metrics(query).iter_runs():
 ## Query other objects
 
 You can query images and other custom objects via the backend API. Check the `matyan_client.Repo` API for `query_metrics`, `query_runs`, and any object-specific query methods that mirror the backend endpoints.
-
-## Backend API
-
-For full control, use the backend REST API directly (see [API](../api.md)): run search, metric search, custom object search, and streaming endpoints. The UI and SDK both use these APIs.
