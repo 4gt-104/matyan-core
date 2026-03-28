@@ -9,11 +9,22 @@ templates:
   - templates/cleanup-tombstones-cronjob.yaml
 
 tests:
-  - it: CronJobs are not rendered when disabled (default)
+  - it: CronJobs are rendered by default
     values:
       - fixtures/base.yaml
     set:
       fdb-cluster.clusterFileContent: "test"
+    asserts:
+      - hasDocuments:
+          count: 1
+
+  - it: CronJobs are NOT rendered when explicitly disabled
+    values:
+      - fixtures/base.yaml
+    set:
+      fdb-cluster.clusterFileContent: "test"
+      periodicJobs.cleanupOrphanBlobs.enabled: false
+      periodicJobs.cleanupTombstones.enabled: false
     asserts:
       - hasDocuments:
           count: 0

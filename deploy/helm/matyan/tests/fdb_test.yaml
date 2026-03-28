@@ -15,6 +15,9 @@ tests:
   - it: no volume mount or wait-for-fdb when no cluster file source is configured
     values:
       - fixtures/base.yaml
+    set:
+      fdb-operator.install: false
+      fdb-cluster.install: false
     asserts:
       - isNull:
           path: spec.template.spec.volumes
@@ -289,6 +292,8 @@ tests:
     values:
       - fixtures/base.yaml
     set:
+      fdb-operator.install: false
+      fdb-cluster.install: false
       fdbClient.waitForReady.enabled: true
     asserts:
       - notContains:
