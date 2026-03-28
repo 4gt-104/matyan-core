@@ -23,7 +23,7 @@ The original stack used **RocksDB** (per-run containers, Cython) and **SQLite** 
 - **Transactions** — FDB provides ACID transactions. Index updates (e.g. add run to experiment index, update hparam index) can be done in the same transaction as the primary write, so indexes stay consistent without a separate commit protocol.
 - **Scalability** — FDB scales out (sharding, replication) and is designed for high write and read throughput. RocksDB is single-node; SQLite is single-writer. FDB fits a shared, multi-tenant backend.
 - **No Cython** — The original storage used Cython for performance. FDB’s Python bindings are already C-backed; we can keep the storage layer in pure Python and still get good performance.
-- **Operational familiarity** — FDB is run as a separate cluster (like Kafka or S3); operators can size, back up, and upgrade it independently. No embedded process inside the app.
+- **Operational familiarity** — FDB is run as a separate cluster (like Kafka or S3/GCS/Azure); operators can size, back up, and upgrade it independently. No embedded process inside the app.
 
 ### Key space design (tuples and subspaces)
 

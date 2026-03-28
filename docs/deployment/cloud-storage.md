@@ -4,7 +4,7 @@ icon: material/cloud
 
 # Cloud Storage Configuration
 
-Matyan officially supports two robust cloud blob storage backends for persisting heavy artifacts, sequences, images, and audio seamlessly: **Amazon Web Services S3** and **Google Cloud Storage (GCS)**.
+Matyan officially supports three robust cloud blob storage backends for persisting heavy artifacts, sequences, images, and audio seamlessly: **Amazon Web Services S3**, **Google Cloud Storage (GCS)**, and **Microsoft Azure Blob Storage**.
 
 Blob storage allows the ingestion frontier to remain incredibly lightweight and highly available, acting as an authentication proxy to generate presigned upload URLs for remote clients, while metadata coordinates asynchronously via FoundationDB and Kafka.
 
@@ -49,3 +49,22 @@ GOOGLE_APPLICATION_CREDENTIALS=/secrets/service-account.json
 ```
 
 **Note:** The service account must possess `Storage Object Admin` or equivalent permissions since generating Signed URLs requires an RSA Private Key. Anonymous default credentials will throw exceptions if utilized within the frontier endpoint generator.
+
+## Azure Blob Storage (Azure)
+
+Azure Blob Storage provides container‑based object storage. Matyan can generate SAS tokens for presigned uploads and use the Azure SDK for cleanup.
+
+### Configuration
+Provide the following environment variables to both the backend and frontier:
+
+```env
+BLOB_BACKEND_TYPE=azure
+AZURE_CONTAINER=matyan-artifacts
+# Either a connection string or an account URL with appropriate credentials
+AZURE_CONN_STR=DefaultEndpointsProtocol=https;AccountName=youraccount;AccountKey=yourkey;EndpointSuffix=core.windows.net
+# Optional: use account URL if you prefer SAS token generation via user delegation
+# AZURE_ACCOUNT_URL=https://youraccount.blob.core.windows.net
+```
+
+### Authentication
+Azure authentication can be performed via a full connection string (`AZURE_CONN_STR`) or via an account URL (`AZURE_ACCOUNT_URL`) combined with a SAS token or managed identity. The frontier generates SAS URLs for direct client uploads, and the control worker uses the Azure SDK to delete blobs on run deletion.

@@ -1,13 +1,13 @@
 # Matyan Backend — Docker Hub Repository Overview
 
-**Matyan backend** is the REST API and storage layer for the Matyan experiment-tracking stack. It serves reads and control operations from **FoundationDB**, consumes ingestion and control events from **Kafka**, and uses **S3** for artifact blobs. Part of the [Matyan](https://github.com/4gt-104/matyan-core) stack (experiment-tracking fork of Aim).
+**Matyan backend** is the REST API and storage layer for the Matyan experiment-tracking stack. It serves reads and control operations from **FoundationDB**, consumes ingestion and control events from **Kafka**, and uses **S3/GCS/Azure** for artifact blobs. Part of the [Matyan](https://github.com/4gt-104/matyan-core) stack (experiment-tracking fork of Aim).
 
 ## What this image does
 
 - **REST API** (FastAPI): Runs, experiments, tags, projects, dashboards, reports, streaming search, metric charts, custom objects (images, audio, figures, etc.), run logs. API is under `/api/v1`.
 - **Read path**: Serves the UI and external clients by reading from FoundationDB (with index-accelerated AimQL-style queries).
-- **Control path**: Handles mutations (delete run, rename experiment, archive, tag add/remove) synchronously; writes to FDB and emits Kafka control events for async side effects (e.g. S3 cleanup).
-- **Workers** (run as separate containers/processes): `ingest-worker` consumes the data-ingestion Kafka topic and writes to FDB; `control-worker` consumes control-events and performs S3 cleanup and other side effects.
+- **Control path**: Handles mutations (delete run, rename experiment, archive, tag add/remove) synchronously; writes to FDB and emits Kafka control events for async side effects (e.g. storage cleanup).
+- **Workers** (run as separate containers/processes): `ingest-worker` consumes the data-ingestion Kafka topic and writes to FDB; `control-worker` consumes control-events and performs storage cleanup and other side effects.
 
 This image can run the **API server** only (`matyan-backend start`). For full pipeline, also run the ingestion and control workers (same image, different command).
 
@@ -15,7 +15,7 @@ This image can run the **API server** only (`matyan-backend start`). For full pi
 
 - **FoundationDB** — Cluster must be running; provide cluster file via `FDB_CLUSTER_FILE`.
 - **Kafka** — Required for workers; optional if you only run the API and do not ingest new data.
-- **S3-compatible storage** — For artifact blobs (MinIO, AWS S3, or compatible). Optional if you do not use blob artifacts.
+- **Cloud blob storage** — For artifact blobs (S3-compatible, Google Cloud Storage, or Azure Blob Storage). Optional if you do not use blob artifacts.
 
 ## Configuration (environment variables)
 
@@ -25,6 +25,12 @@ This image can run the **API server** only (`matyan-backend start`). For full pi
 | `S3_ENDPOINT` | `http://localhost:9000` | S3-compatible API URL. |
 | `S3_ACCESS_KEY` / `S3_SECRET_KEY` | (dev defaults) | S3 credentials. |
 | `S3_BUCKET` | `matyan-artifacts` | Bucket for artifacts. |
+| `S3_REGION` | `us-east-1` | S3 region (default: `us-east-1`). |
+| `GCS_BUCKET` | `matyan-artifacts-gcs` | GCS bucket for artifacts. |
+| `GOOGLE_APPLICATION_CREDENTIALS` | (dev default) | Path to GCP service account JSON. |
+| `AZURE_CONTAINER` | `matyan-artifacts` | Azure container for artifacts. |
+| `AZURE_CONN_STR` | (dev default) | Azure connection string. |
+| `AZURE_ACCOUNT_URL` | (optional) | Azure account URL for SAS generation. |
 | `BLOB_URI_SECRET` | (dev default) | Fernet key for encrypted blob URIs; **must be set in production**. |
 | `KAFKA_BOOTSTRAP_SERVERS` | `localhost:9092` | Kafka broker list (for workers). |
 | `KAFKA_DATA_INGESTION_TOPIC` | `data-ingestion` | Ingestion topic. |
@@ -43,7 +49,7 @@ docker run -p 53800:53800 \
   matyan-backend:latest
 ```
 
-For production, also run `matyan-backend ingest-worker` and `matyan-backend control-worker` with the same image, with Kafka and S3 configured.
+For production, also run `matyan-backend ingest-worker` and `matyan-backend control-worker` with the same image, with Kafka and blob storage configured.
 
 ## Tags and versioning
 

@@ -70,7 +70,7 @@ run = Run(
 Pass `run_hash` to continue logging to that run:
 
 ```python
-run = Run(run_hash="508c5b29-02c7-4875-a157-f099ea193bfa", repo="http://localhost:53800")
+run = Run(run_hash="508c5b29-02c7-4875-a157-f099ea193bfa")
 for i in range(100):
     run.track(i, step=i, name="test")
 run.close()
@@ -95,10 +95,14 @@ run = Run()
 run.add_tag("v1.0")
 run.add_tag("production-candidate")
 
+run.close()
+
 # On an existing run (by hash)
 run = Run(run_hash="...", repo="http://localhost:53800")
 run.remove_tag("old-tag")
 run.add_tag("new-tag")
+
+run.close()
 ```
 
 Set arbitrary params:

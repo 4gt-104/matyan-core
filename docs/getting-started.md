@@ -57,15 +57,6 @@ This starts:
 - **matyan-ui** (FastAPI web server, port 8000)
 - **Ingestion and control workers** (Kafka consumers)
 
-## Configure the client
-
-Set environment variables (or pass URLs to `Run` / `Repo`):
-
-```bash
-export MATYAN_BACKEND_URL=http://localhost:53800
-export MATYAN_FRONTIER_URL=http://localhost:53801
-```
-
 ## Try it
 
 Create a run and track some data:
@@ -85,15 +76,6 @@ Data is sent to the frontier (WebSocket) and backend (REST); workers persist it 
 ## Browsing results in the UI
 
 Open the Matyan UI in your browser at `http://localhost:8000`. Use the Metrics explorer, run search, and run details.
-
-## Smoke tests (optional)
-
-From the `extra/matyan-backend` with the stack running:
-
-```bash
-uv run python scripts/smoke_test.py   # FDB + S3
-uv run python scripts/smoke_kafka.py # Kafka
-```
 
 ## Next
 

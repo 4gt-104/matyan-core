@@ -6,7 +6,7 @@ icon: material/test-tube
 
 ## Unit tests
 
-Unit tests live inside each package (`extra/matyan-backend/tests/`, `extra/matyan-client/tests/`, `extra/matyan-frontier/tests/`). They use mocks for external services (Kafka, S3, HTTP) and run against a real FoundationDB when required. Run them from each package:
+Unit tests live inside each package (`extra/matyan-backend/tests/`, `extra/matyan-client/tests/`, `extra/matyan-frontier/tests/`). They use mocks for external services (Kafka, S3/GCS/Azure, HTTP) and run against a real FoundationDB when required. Run them from each package:
 
 - `cd extra/matyan-backend && uv run pytest`
 - `cd extra/matyan-client && uv run pytest`

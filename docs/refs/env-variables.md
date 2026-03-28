@@ -16,7 +16,7 @@ This page lists **environment variables** for all Matyan components. Use them to
 | **matyan-ui** | `MATYAN_UI_` | `_config.py` (`os.environ.get`) |
 | **Workers** | Same as backend | Same process as backend, different command; use backend vars |
 
-Backend and frontier also accept **`MATYAN_ENVIRONMENT`** or **`ENVIRONMENT`** for the environment flag (development vs production). When set to `production`, both enforce that sensitive settings (S3, Kafka, blob URI secret, FDB cluster file) are not left at dev defaults.
+Backend and frontier also accept **`MATYAN_ENVIRONMENT`** or **`ENVIRONMENT`** for the environment flag (development vs production). When set to `production`, both enforce that sensitive settings (S3/GCS/Azure, Kafka, blob URI secret, FDB cluster file) are not left at dev defaults.
 
 ---
 
@@ -28,7 +28,6 @@ Used by the **Python SDK** on the machine where you run training code. All clien
 |----------|---------|-------------|
 | **MATYAN_BACKEND_URL** | `http://localhost:53800` | Backend REST API base URL. Used for metadata, tags, queries, delete. Fallback when `Run(repo=...)` / `Repo(url=...)` omit the URL. |
 | **MATYAN_FRONTIER_URL** | `http://localhost:53801` | Frontier base URL for WebSocket and presign. Used for `track()`, params, metrics, artifact presign. Fallback when `Run(frontier_url=...)` and `repo` are not set. |
-| **MATYAN_S3_ENDPOINT** | `http://localhost:9000` | S3 endpoint (e.g. MinIO). Used when constructing or resolving S3 URLs; presigned URLs are issued by the frontier. |
 | **MATYAN_WS_VERBOSE** | `false` | Enable verbose WebSocket logging. |
 | **MATYAN_WS_QUEUE_MAX_MEMORY_MB** | `512` | Max memory (MB) for the outbound WebSocket message queue; backpressure when exceeded. |
 | **MATYAN_WS_HEARTBEAT_INTERVAL** | `10` | Heartbeat interval (seconds) for WebSocket connection health. |
@@ -142,7 +141,7 @@ Used by the **frontier** process (WebSocket + presign). Variables use the **uppe
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| **MATYAN_ENVIRONMENT** or **ENVIRONMENT** | `development` | Set to `production` to require explicit S3 and Kafka settings (no dev defaults). |
+| **MATYAN_ENVIRONMENT** or **ENVIRONMENT** | `development` | Set to `production` to require explicit S3/GCS/Azure and Kafka settings (no dev defaults). |
 | **LOG_LEVEL** | `INFO` | Log level. |
 | **PORT** | `53801` | Port to bind. |
 | **HOST** | `0.0.0.0` | Host to bind. |
@@ -202,7 +201,7 @@ Used by the **UI** server (Python wrapper that serves the React app). All variab
 
 ## Workers (ingestion and control)
 
-**Ingestion** and **control** workers run the **matyan-backend** image with a different command (`matyan-backend ingest-worker`, `matyan-backend control-worker`). They use the **same** environment variables as the backend (FDB, Kafka, S3, blob URI secret, ingestion batching, metrics port, etc.). Configure them the same way you would the backend (e.g. in Kubernetes, share the same ConfigMap/Secret or deployment env).
+**Ingestion** and **control** workers run the **matyan-backend** image with a different command (`matyan-backend ingest-worker`, `matyan-backend control-worker`). They use the **same** environment variables as the backend (FDB, Kafka, S3/GCS/Azure, blob URI secret, ingestion batching, metrics port, etc.). Configure them the same way you would the backend (e.g. in Kubernetes, share the same ConfigMap/Secret or deployment env).
 
 No separate env reference for workers — use the [matyan-backend](#matyan-backend) table above.
 

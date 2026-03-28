@@ -49,20 +49,20 @@ in-cluster dependencies (Kafka, RustFS S3, FoundationDB operator + cluster).
 Training clients
   │
   ├── WebSocket ──► Frontier ──► Kafka ──► Ingestion workers ──► FoundationDB
-  └── Presigned URL ──────────► S3
+  └── Presigned URL ──────────► Cloud Storage (S3, GCS, Azure SAS)
                                          ▲
 UI (browser) ──► REST API ──► Backend ──┘  (reads from FDB)
                                  │
-                                 └──► Kafka (control-events) ──► Control workers ──► S3 cleanup
+                                 └──► Kafka (control-events) ──► Control workers ──► Cleanup
 ```
 
 | Service | Role |
 |---|---|
 | `matyan-backend` | REST API: serves reads from FDB, handles control ops (delete, rename) |
-| `matyan-frontier` | Ingestion gateway: WebSocket → Kafka, presigned S3 URLs |
+| `matyan-frontier` | Ingestion gateway: WebSocket → Kafka, presigned URLs (S3, GCS, Azure) |
 | `matyan-ui` | React SPA served by a Python wrapper |
 | `ingestion-worker` | Kafka consumer: data-ingestion topic → FDB writes |
-| `control-worker` | Kafka consumer: control-events topic → S3 cleanup, async side effects |
+| `control-worker` | Kafka consumer: control-events topic → Storage cleanup, async side effects |
 
 All application services are **stateless** and horizontally scalable.
 
@@ -75,7 +75,8 @@ All application services are **stateless** and horizontally scalable.
 - `helm dependency build` run inside the chart directory (fetches Bitnami Kafka and RustFS subcharts)
 - A reachable **FoundationDB** cluster (or `fdb-cluster.install: true` with the FDB operator)
 - A reachable **Kafka** broker (or `kafka.install: true`)
-- An **S3-compatible** object store (or `rustfs.install: true`)
+- A reachable **Cloud Storage** backend (S3-compatible, GCS, or Azure Blob Storage)
+- (Optional) `rustfs.install: true` for an in-cluster S3-compatible store
 
 ```bash
 cd deploy/helm/matyan
@@ -169,7 +170,7 @@ Runs the same container image as the backend with command `matyan-backend contro
 
 Optional CronJobs run the backend CLI for maintenance:
 
-- **cleanup-orphan-s3**: Deletes S3 objects for runs that have a deletion tombstone (e.g. when control-worker never ran or events were lost). Enable with `periodicJobs.cleanupOrphanS3.enabled: true` and set `periodicJobs.cleanupOrphanS3.schedule` (e.g. `"0 3 * * *"` for daily at 03:00).
+- **cleanup-orphan-blobs**: Deletes blob objects for runs that have a deletion tombstone (e.g. when control-worker never ran or events were lost). Works for S3, GCS, and Azure. Enable with `periodicJobs.cleanupOrphanBlobs.enabled: true` and set `periodicJobs.cleanupOrphanBlobs.schedule` (e.g. `"0 3 * * *"` for daily at 03:00).
 - **cleanup-tombstones**: Removes old deletion tombstones from FDB so the `_deleted` index does not grow unbounded. Enable with `periodicJobs.cleanupTombstones.enabled: true` and set `periodicJobs.cleanupTombstones.schedule` (e.g. `"0 4 * * 0"` for weekly Sunday 04:00).
 
 Both use the same FDB and (for orphan S3) S3 configuration as the control worker. They are only rendered when FDB is configured (cluster file available) and the corresponding `enabled` and `schedule` values are set. Lock TTL and other options are in `values.yaml` under `periodicJobs.*`.
@@ -306,21 +307,27 @@ deploying any FDB resources via this chart.
 | `fdbClient.waitForReady.image.repository` | `foundationdb/foundationdb` | Image for the wait-for-fdb init container (must include `fdbcli`) |
 | `fdbClient.waitForReady.image.tag` | `7.3.69` | Image tag. Should match `fdb-cluster.clusterVersion`. |
 
-### S3 (`s3`)
+### Blob Storage (`s3`, `gcs`, `azure`)
+
+Matyan supports three blob storage backends for artifacts: AWS S3 (and S3-compatible), Google Cloud Storage (GCS), and Azure Blob Storage. Configure the active backend via `blobBackendType`.
 
 | Parameter | Default | Description |
 |---|---|---|
-| `s3.endpoint` | `""` | Internal S3 endpoint used by backend and frontier pods. Auto-set when `rustfs.install` is true. |
-| `s3.publicEndpoint` | `""` | Public S3 URL embedded in presigned URLs returned to clients. See fallback chain below. |
-| `s3.bucket` | `matyan-artifacts` | S3 bucket name for all blob artifacts |
-| `s3.presignExpiry` | `3600` | Presigned URL lifetime in seconds |
-| `s3.accessKey` | `""` | Plaintext access key. Ignored when `rustfs.install` is true or `existingSecret` is set. |
-| `s3.secretKey` | `""` | Plaintext secret key. Same conditions as above. |
-| `s3.existingSecret` | `""` | Preexisting Secret with S3 credentials |
-| `s3.accessKeyKey` | `s3-access-key` | Key inside `existingSecret` for the access key |
-| `s3.secretKeyKey` | `s3-secret-key` | Key inside `existingSecret` for the secret key |
-| `s3.initImage.repository` | `minio/mc` | Image for the s3-init-job (MinIO client) |
-| `s3.initImage.tag` | `RELEASE.2025-08-13T08-35-41Z` | Image tag |
+| `blobBackendType` | `s3` | Active backend: `s3`, `gcs`, or `azure`. |
+| **S3 Settings** | | |
+| `s3.endpoint` | `""` | Internal S3 endpoint. Auto-set when `rustfs.install` is true. |
+| `s3.publicEndpoint` | `""` | Public S3 URL for training clients. |
+| `s3.bucket` | `matyan-artifacts` | S3 bucket name. |
+| `s3.region` | `us-east-1` | S3 region (default: `us-east-1`). |
+| `s3.presignExpiry` | `3600` | URL/SAS lifetime in seconds. |
+| `s3.accessKey` / `s3.secretKey` | `""` | S3 credentials. |
+| `s3.existingSecret` | `""` | Secret with `s3-access-key` and `s3-secret-key`. |
+| **GCS Settings** | | |
+| `gcs.bucket` | `matyan-artifacts` | GCS bucket name. Credentials via ADC. |
+| **Azure Settings** | | |
+| `azure.container` | `matyan-artifacts` | Azure container name. |
+| `azure.connStr` | `""` | Azure connection string. |
+| `azure.accountUrl` | `""` | Azure account URL (for DefaultAzureCredential). |
 
 ### Blob URI secret (`blobUriSecret`)
 
@@ -453,6 +460,25 @@ Worker ServiceMonitors are only created when the corresponding `metricsPort` is 
 | `controlWorker.command` | `["matyan-backend", "control-worker"]` | Entrypoint command |
 | `controlWorker.resources` | `{}` | CPU/memory requests and limits |
 | `controlWorker.extraEnv` | `[]` | Extra environment variables |
+
+### Periodic jobs (`periodicJobs`)
+
+| Parameter | Default | Description |
+|---|---|---|
+| `periodicJobs.cleanupOrphanBlobs.enabled` | `true` | Create a CronJob that runs cleanup-orphan-blobs. |
+| `periodicJobs.cleanupOrphanBlobs.schedule` | `"0 3 * * *"` | Cron schedule (required when enabled). |
+| `periodicJobs.cleanupOrphanBlobs.lockTtlSeconds` | `3600` | FDB lock TTL in seconds (only one instance runs at a time). |
+| `periodicJobs.cleanupOrphanBlobs.limit` | `0` | Process at most N run prefixes per run (0 = no limit). |
+| `periodicJobs.cleanupOrphanBlobs.image` | `{}` | Image override; when not set uses `controlWorker.image`. |
+| `periodicJobs.cleanupOrphanBlobs.successfulJobsHistoryLimit` | `3` | Successfully completed job limit. |
+| `periodicJobs.cleanupOrphanBlobs.failedJobsHistoryLimit` | `1` | Failed job limit. |
+| `periodicJobs.cleanupTombstones.enabled` | `true` | Create a CronJob that runs cleanup-tombstones. |
+| `periodicJobs.cleanupTombstones.schedule` | `"0 4 * * 0"` | Cron schedule (required when enabled). |
+| `periodicJobs.cleanupTombstones.olderThanHours` | `168` | Only clear tombstones older than this many hours. |
+| `periodicJobs.cleanupTombstones.lockTtlSeconds` | `600` | FDB lock TTL in seconds. |
+| `periodicJobs.cleanupTombstones.image` | `{}` | Image override. |
+| `periodicJobs.cleanupTombstones.successfulJobsHistoryLimit` | `3` | Successfully completed job limit. |
+| `periodicJobs.cleanupTombstones.failedJobsHistoryLimit` | `1` | Failed job limit. |
 
 ### Ingress (`ingress`)
 

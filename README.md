@@ -1,7 +1,7 @@
 <div align="center">
   <img src="https://raw.githubusercontent.com/4gt-104/matyan-core/main/docs/static/logo.svg" width="200" alt="Matyan" />
   <h3>A scalable, self-hosted ML experiment tracker</h3>
-  <p>Aim-compatible UI and SDK · FoundationDB · Kafka · S3</p>
+  <p>Aim-compatible UI and SDK · FoundationDB · Kafka · Cloud Storage (S3, GCS, Azure)</p>
 </div>
 
 <br/>
@@ -37,7 +37,7 @@
 
 # ℹ️ About
 
-Matyan (մատյան, *book of records* in Armenian) is a self-hosted ML experiment tracking stack forked from [Aim](https://github.com/aimhubio/aim). The backend is fully reimplemented on **FoundationDB**, **Kafka**, and **S3** for horizontal scalability — while the original Aim React UI and Python client SDK API are preserved unchanged.
+Matyan (մատյան, *book of records* in Armenian) is a self-hosted ML experiment tracking stack forked from [Aim](https://github.com/aimhubio/aim). The backend is fully reimplemented on **FoundationDB**, **Kafka**, and **Cloud Storage** (S3, GCS, Azure) for horizontal scalability — while the original Aim React UI and Python client SDK API are preserved unchanged.
 
 Matyan logs your training runs and any ML metadata, enables a beautiful UI to compare and observe them, and provides an SDK to query them programmatically.
 
@@ -80,7 +80,7 @@ Matyan logs your training runs and any ML metadata, enables a beautiful UI to co
           <ul>
             <li>Helm chart for Kubernetes with all components</li>
             <li>Stateless, horizontally scalable services</li>
-            <li>MinIO / AWS S3 for large blob artifacts</li>
+            <li>S3, GCS, or Azure Blob Storage for large artifact blobs</li>
           </ul>
         </td>
       </tr>
@@ -127,7 +127,7 @@ Matyan logs your training runs and any ML metadata, enables a beautiful UI to co
 ./dev/compose-cluster.sh up -d
 ```
 
-This starts FoundationDB, Kafka, and S3 (RustFS/MinIO) locally via Docker Compose.
+This starts FoundationDB, Kafka, and S3 (RustFS) locally via Docker Compose. (GCS and Azure backends are supported in production).
 Then start the backend, frontier, and UI from their package directories (see each component README for `uv run` commands).
 
 ## 2. Install the client
@@ -213,8 +213,7 @@ flowchart TB
     end
 
     subgraph ingestion["Ingestion path"]
-        F["matyan-frontier<br/>(WebSocket / presigned S3)"]
-        S3["S3<br/>(blobs)"]
+        STR["Cloud Storage<br/>(S3 / GCS / Azure)"]
         K["Kafka<br/>data-ingestion"]
         IW["Ingestion Workers"]
     end
@@ -230,19 +229,10 @@ flowchart TB
     end
 
     C -->|"WebSocket (metrics, hparams)"| F
-    C -->|"PUT blob"| S3
-    F -->|"blob ref"| K
-    F --> K
-    K --> IW
-    IW --> FDB
-    IW --> S3
-
-    U -->|"REST reads"| B
-    U -->|"REST control ops"| B
-    B -->|"immediate write"| FDB
-    B --> KC
-    KC --> CW
-    CW -->|"S3 cleanup, cascades"| S3
+    C --| "PUT blob" | STR
+    F --| "blob ref" | K
+    IW --> STR
+    CW --| "cleanup" | STR
 ```
 
 | Concern | Entry point | Consistency |
@@ -259,12 +249,12 @@ flowchart TB
 | Path | Purpose |
 |---|---|
 | **`extra/matyan-backend/`** | REST API, FDB storage, ingestion/control Kafka workers, CLI. [README](extra/matyan-backend/README.md) |
-| **`extra/matyan-frontier/`** | Ingestion gateway: WebSocket + presigned S3 URLs; publishes to Kafka. [README](extra/matyan-frontier/README.md) |
+| **`extra/matyan-frontier/`** | Ingestion gateway: WebSocket + presigned URLs (S3, GCS, Azure SAS); publishes to Kafka. [README](extra/matyan-frontier/README.md) |
 | **`extra/matyan-ui/`** | React frontend (from Aim) + Python wrapper for serving. [README](extra/matyan-ui/README.md) |
 | **`extra/matyan-client/`** | Python client SDK (Aim-compatible API); connects to frontier and backend. |
 | **`extra/matyan-api-models/`** | Shared Pydantic models (WS, Kafka, REST). [README](extra/matyan-api-models/README.md) |
 | **`deploy/helm/matyan/`** | Helm chart for Kubernetes. [README](deploy/helm/matyan/README.md) |
-| **`dev/docker-compose.yml`** | Local dev: FDB, Kafka, S3 (RustFS/MinIO), optional app services. |
+| **`dev/docker-compose.yml`** | Local dev: FDB, Kafka, S3 (RustFS), optional app services. |
 | **`docs/`** | MkDocs source for the documentation site. |
 
 ---
@@ -301,7 +291,7 @@ uv run python scripts/seed_data.py seed
 
 ## Kubernetes
 
-Matyan ships a Helm chart covering all application services and their infrastructure dependencies (FoundationDB via the `fdb-operator`, Kafka, MinIO).
+Matyan ships a Helm chart covering all application services and their infrastructure dependencies (FoundationDB via the `fdb-operator`, Kafka, RustFS).
 
 **Prerequisites**: a Kubernetes cluster (1.25+) with a default or named `StorageClass`.
 
@@ -385,7 +375,7 @@ MLflow is an end-to-end ML lifecycle tool. Matyan is focused on training trackin
 **Hosted vs self-hosted**
 
 - Weights and Biases is a hosted, closed-source MLOps platform. Your experiment data lives on their servers.
-- Matyan is fully self-hosted and open-source — your data stays in your own infrastructure (FoundationDB + S3).
+- Matyan is fully self-hosted and open-source — your data stays in your own infrastructure (FoundationDB + S3/GCS/Azure).
 
 **Cost**
 
@@ -433,7 +423,7 @@ Matyan is the right choice when you need to scale to many concurrent training jo
 # 📦 Component READMEs
 
 - [Matyan Backend](https://github.com/4gt-104/matyan-backend) — REST API, FDB storage, workers, config, deployment.
-- [Matyan Frontier](https://github.com/4gt-104/matyan-frontier) — Ingestion gateway, WebSocket, presigned S3 URLs.
+- [Matyan Frontier](https://github.com/4gt-104/matyan-frontier) — Ingestion gateway, WebSocket, presigned URLs (S3/GCS/Azure).
 - [Matyan UI](https://github.com/4gt-104/matyan-ui) — Frontend build, serve, and environment variables.
 - [Matyan API Models](https://github.com/4gt-104/matyan-api-models) — Shared Pydantic models.
 - [Helm Chart](deploy/helm/matyan/README.md) — Kubernetes deployment and configuration.

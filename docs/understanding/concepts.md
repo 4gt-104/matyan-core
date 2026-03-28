@@ -4,7 +4,7 @@ icon: material/book-open
 
 # Concepts
 
-Matyan uses the same core concepts: runs, repo (backend), params, sequences, and context. Data lives server-side in FDB and S3, not in a local repo.
+Matyan uses the same core concepts: runs, repo (backend), params, sequences, and context. Data lives server-side in FDB and S3/GCS/Azure, not in a local repo.
 
 ## Run
 

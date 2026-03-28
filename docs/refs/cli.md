@@ -14,9 +14,9 @@ The backend serves the REST API and (optionally) the UI.
 |--------|-------------|
 | **matyan-backend start** | Start the FastAPI server (default port 53800). |
 | **matyan-backend reindex** | Rebuild all Tier 1 and Tier 2 indexes in FoundationDB. Use after recovery or schema changes. |
-| **matyan-backend backup** | Export FDB + S3 data to a portable backup directory or `.tar.gz`. Options: `--runs`, `--experiment`, `--since`, `--include-blobs`/`--no-blobs`, `--compress`. See [Backups and restore](../using/backups-and-restore.md). |
-| **matyan-backend restore** | Restore a backup archive directly into FDB + S3 (direct mode). Options: `--dry-run`, `--skip-entities`, `--skip-blobs`. |
-| **matyan-backend cleanup-orphan-s3** | Delete S3 objects for runs that have a deletion tombstone. For CronJobs or cron. Options: `--dry-run`, `--limit`, `--lock-ttl-seconds`. See [Periodic cleanup jobs](../deployment/periodic-cleanup-jobs.md). |
+| **matyan-backend backup** | Export FDB + S3/GCS/Azure data to a portable backup directory or `.tar.gz`. Options: `--runs`, `--experiment`, `--since`, `--include-blobs`/`--no-blobs`, `--compress`. See [Backups and restore](../using/backups-and-restore.md). |
+| **matyan-backend restore** | Restore a backup archive directly into FDB + S3/GCS/Azure (direct mode). Options: `--dry-run`, `--skip-entities`, `--skip-blobs`. |
+| **matyan-backend cleanup-orphan-blobs** | Delete objects from blob backend (S3/GCS/Azure) for runs that have a deletion tombstone. For CronJobs or cron. Options: `--dry-run`, `--limit`, `--lock-ttl-seconds`. See [Periodic cleanup jobs](../deployment/periodic-cleanup-jobs.md). |
 | **matyan-backend cleanup-tombstones** | Remove old deletion tombstones from FDB. For CronJobs or cron. Options: `--older-than-hours`, `--dry-run`, `--lock-ttl-seconds`. |
 
 Example:
@@ -27,11 +27,11 @@ uv run matyan-backend start
 uv run matyan-backend start --port 53800
 ```
 
-Environment: set FDB cluster file, S3 endpoint/credentials, Kafka brokers, etc. via config (see backend `config.py` or env vars).
+Environment: set FDB cluster file, S3/GCS/Azure endpoint/credentials, Kafka brokers, etc. via config (see backend `config.py` or env vars).
 
 ## Frontier (matyan-frontier)
 
-The frontier is the ingestion gateway (WebSocket + presigned S3).
+The frontier is the ingestion gateway (WebSocket + presigned S3/GCS/Azure).
 
 | Command | Description |
 |--------|-------------|
@@ -43,16 +43,16 @@ Example:
 cd extra/matyan-frontier && uv run matyan-frontier start
 ```
 
-Environment: Kafka bootstrap servers, S3 endpoint/credentials, CORS, etc.
+Environment: Kafka bootstrap servers, S3/GCS/Azure endpoint/credentials, CORS, etc.
 
 ## Workers (matyan-backend)
 
-Workers run inside the **matyan-backend** package and use its FDB/S3/Kafka config.
+Workers run inside the **matyan-backend** package and use its FDB/S3/GCS/Azure/Kafka config.
 
 | Command | Description |
 |--------|-------------|
 | **matyan-backend ingest-worker** | Consume `data-ingestion` Kafka topic; write runs and sequences to FDB. |
-| **matyan-backend control-worker** | Consume `control-events` topic; perform S3 cleanup and other side effects. |
+| **matyan-backend control-worker** | Consume `control-events` topic; perform S3/GCS/Azure cleanup and other side effects. |
 
 Example:
 
@@ -87,11 +87,11 @@ From the repo root:
 ./dev/compose-cluster.sh up -d
 ```
 
-Starts FDB, Kafka, MinIO, backend, frontier, and workers (see `docker-compose.yml`). No separate init or UI server command — the stack is already configured.
+Starts FDB, Kafka, RustFS, backend, ui, frontier, and workers (see `docker-compose.yml`). No separate init or UI server command - the stack is already configured.
 
 ## No single CLI
 
-- There is no local repo init — storage is on the server (FDB + S3).
+- There is no local repo init — storage is on the server (FDB + S3/GCS/Azure).
 - Run the backend (and optionally serve the UI) as above.
 - Use the backend API or `matyan_client.Repo` for run operations.
 - Backups: create with **matyan-backend backup**; restore with **matyan-backend restore** (direct) or **matyan-client restore-reingest** (client). See [Backups and restore](../using/backups-and-restore.md).

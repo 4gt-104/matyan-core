@@ -17,11 +17,11 @@ This section explains **each major component** of Matyan and the **architectural
 | Page | Component | Focus |
 |------|-----------|--------|
 | [Backend](backend.md) | matyan-backend | REST API, reads from FDB, control operations, why sync FDB + Kafka for control. |
-| [Frontier](frontier.md) | matyan-frontier | Ingestion gateway, WebSocket, Kafka producer, presigned S3; why clients never see Kafka. |
-| [Workers](workers.md) | Ingestion & control workers | Kafka consumers, FDB writes, S3 cleanup; consumer groups, idempotency, scaling. |
+| [Frontier](frontier.md) | matyan-frontier | Ingestion gateway, WebSocket, Kafka producer, presigned S3/GCS/Azure; why clients never see Kafka. |
+| [Workers](workers.md) | Ingestion & control workers | Kafka consumers, FDB writes, cloud blob storage cleanup; consumer groups, idempotency, scaling. |
 | [FoundationDB](foundationdb.md) | FDB storage layer | Why FDB, key space, indexes, transactions, schema and evolution. |
 | [Kafka](kafka.md) | Message broker | Two topics, partitioning, ordering guarantees, why async ingestion. |
-| [S3 and blobs](s3-blobs.md) | Blob storage | Why S3, presigned URLs, frontier’s role, control-worker cleanup. |
+| [Cloud blob storage](cloud-blob-storage.md) | Blob storage | Presigned URLs, frontier’s role, control-worker cleanup. |
 | [UI](ui.md) | matyan-ui | React app, backend-only, polling, no WebSocket to UI. |
 | [Client SDK](client-sdk.md) | matyan-client | Aim-compatible API, write cache, WebSocket vs HTTP routing. |
 

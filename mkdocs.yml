@@ -92,10 +92,9 @@ nav:
     - Workers: advanced/workers.md
     - FoundationDB: advanced/foundationdb.md
     - Kafka: advanced/kafka.md
-    - S3 and blobs: advanced/s3-blobs.md
+    - Cloud Blob Storage: advanced/cloud-blob-storage.md
     - UI: advanced/ui.md
     - Client SDK: advanced/client-sdk.md
-  - API: api.md
   - References:
     - Glossary: glossary.md
     - CLI: refs/cli.md

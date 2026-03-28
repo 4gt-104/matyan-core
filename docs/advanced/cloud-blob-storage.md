@@ -4,7 +4,7 @@ icon: material/file-document-multiple
 
 # Blob Storage Overview
 
-Large binary objects (images, audio, artifacts, and other blobs) are stored in an **S3-compatible** or **Google Cloud Storage (GCS)** object store. Matyan uses Blob Storage only for **blob content**; metadata (which run, which sequence, step index) lives in **FoundationDB**. The frontier issues **presigned URLs** so clients upload directly to the storage bucket; the backend fetches from the bucket when serving blob content to the UI.
+Large binary objects (images, audio, artifacts, and other blobs) are stored in an **S3-compatible**, **Google Cloud Storage (GCS)**, or **Azure Blob Storage** object store. Matyan uses Blob Storage only for **blob content**; metadata (which run, which sequence, step index) lives in **FoundationDB**. The frontier issues **presigned URLs** so clients upload directly to the storage bucket; the backend fetches from the bucket when serving blob content to the UI.
 
 ## Role
 
@@ -16,9 +16,9 @@ Large binary objects (images, audio, artifacts, and other blobs) are stored in a
 
 ### Why Cloud Storage (not FDB) for blobs
 
-- **Size and cost** — FDB is optimized for smaller values and transactional reads/writes. Large blobs (megabytes) would blow up transaction size and storage cost. Dedicated blob storage (S3/GCS) is designed for large objects and is cheaper at scale.
+- **Size and cost** — FDB is optimized for smaller values and transactional reads/writes. Large blobs (megabytes) would blow up transaction size and storage cost. Dedicated blob storage (S3/GCS/Azure Blob Storage) is designed for large objects and is cheaper at scale.
 - **Streaming** — Serving a large file is a simple GET; the backend streams from the bucket to the client without loading the whole object into memory. FDB would require reading the value into memory or chunking.
-- **Ecosystem** — S3, Google Cloud Storage, or MinIO are standard choices for ML artifacts and are often already present in data platforms. Matyan reuses them instead of inventing a custom blob store.
+- **Ecosystem** — S3, Google Cloud Storage, or Azure Blob Storage are standard choices for ML artifacts and are often already present in data platforms. Matyan reuses them instead of inventing a custom blob store.
 
 ### Presigned URLs (client → Blob Storage directly)
 

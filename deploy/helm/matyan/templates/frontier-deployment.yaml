@@ -100,6 +100,8 @@ spec:
               value: {{ .Values.kafkaClient.saslPassword | quote }}
             {{- end }}
             {{- end }}
+            - name: BLOB_BACKEND_TYPE
+              value: {{ .Values.blobBackendType | quote }}
             - name: S3_ENDPOINT
               value: {{ include "matyan.s3Endpoint" . | quote }}
             - name: S3_PUBLIC_ENDPOINT
@@ -126,6 +128,18 @@ spec:
               value: {{ include "matyan.s3AccessKey" . | quote }}
             - name: S3_SECRET_KEY
               value: {{ include "matyan.s3SecretKey" . | quote }}
+            {{- end }}
+            {{- if .Values.gcs }}
+            - name: GCS_BUCKET
+              value: {{ .Values.gcs.bucket | quote }}
+            {{- end }}
+            {{- if .Values.azure }}
+            - name: AZURE_CONTAINER
+              value: {{ .Values.azure.container | quote }}
+            - name: AZURE_CONN_STR
+              value: {{ .Values.azure.connStr | quote }}
+            - name: AZURE_ACCOUNT_URL
+              value: {{ .Values.azure.accountUrl | quote }}
             {{- end }}
             {{- with .Values.frontier.extraEnv }}
             {{- toYaml . | nindent 12 }}
