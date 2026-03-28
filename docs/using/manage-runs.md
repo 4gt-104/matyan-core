@@ -77,7 +77,7 @@ Data lives in FoundationDB and blob storage on the server. There are two ways to
     matyan-client backup ./backups/ --experiment baseline    # one experiment
     matyan-client backup ./backups/ --since 2024-01-01       # runs created after a date
     matyan-client backup ./backups/ --compress               # produce .tar.gz
-    matyan-client backup ./backups/ --no-blobs               # skip blobs blobs
+    matyan-client backup ./backups/ --no-blobs               # skip blobs
     ```
 
 - **`matyan-backend backup`** — server-side backup with direct FDB access (requires access to the server).
