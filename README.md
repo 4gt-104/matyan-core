@@ -213,9 +213,10 @@ flowchart TB
     end
 
     subgraph ingestion["Ingestion path"]
-        STR["Cloud Storage<br/>(S3 / GCS / Azure)"]
+        F["matyan-frontier<br/>(Ingestion Gateway)"]
         K["Kafka<br/>data-ingestion"]
         IW["Ingestion Workers"]
+        STR["Cloud Storage<br/>(S3 / GCS / Azure)"]
     end
 
     subgraph control["Control path"]
@@ -229,10 +230,15 @@ flowchart TB
     end
 
     C -->|"WebSocket (metrics, hparams)"| F
-    C --| "PUT blob" | STR
-    F --| "blob ref" | K
-    IW --> STR
-    CW --| "cleanup" | STR
+    C -->|"PUT blob"| STR
+    F -->|"blob ref"| K
+    K --> IW
+    IW --> FDB
+    U --> B
+    B --> FDB
+    B --> KC
+    KC --> CW
+    CW -->|"cleanup"| STR
 ```
 
 | Concern | Entry point | Consistency |
