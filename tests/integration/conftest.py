@@ -22,7 +22,7 @@ pytestmark = pytest.mark.integration
 # Service URLs (match docker-compose and smoke scripts)
 BACKEND_URL = os.environ.get("MATYAN_BACKEND_URL", "http://localhost:53800")
 FRONTIER_URL = os.environ.get("MATYAN_FRONTIER_URL", "http://localhost:53801")
-KAFKA_BOOTSTRAP = os.environ.get("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
+KAFKA_BOOTSTRAP = os.environ.get("KAFKA_BOOTSTRAP_SERVERS", "localhost:9094")
 DATA_INGESTION_TOPIC = "data-ingestion"
 CONTROL_EVENTS_TOPIC = "control-events"
 
