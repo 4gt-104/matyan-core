@@ -43,3 +43,25 @@ docs = [
 markers = [
     "integration: integration tests (require backend, frontier, Kafka, etc.; skip when services unavailable)",
 ]
+
+[tool.pixi.workspace]
+channels = ["conda-forge"]
+platforms = ["linux-aarch64", "linux-64", "osx-arm64"]
+
+[tool.pixi.pypi-dependencies]
+
+[tool.pixi.environments]
+default = { solve-group = "default" }
+dev = { features = ["dev"], solve-group = "default" }
+
+[tool.pixi.feature.dev.pypi-dependencies]
+matyan-api-models = { path = "extra/matyan-api-models", editable = true }
+matyan-backend = { path = "extra/matyan-backend", editable = true }
+matyan-frontier = { path = "extra/matyan-frontier", editable = true }
+matyan-client = { path = "extra/matyan-client", editable = true }
+matyan-ui = { path = "extra/matyan-ui", editable = true }
+
+[tool.pixi.tasks]
+
+[tool.pixi.dependencies]
+python = "~=3.12.0"
