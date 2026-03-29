@@ -222,3 +222,6 @@ __marimo__/
 .helm/
 .cursor/rules/matyan-project-context.mdc
 deploy/helm/matyan/values-ad.yaml
+
+# Local agent design specs and implementation plans (not committed)
+docs/superpowers/
