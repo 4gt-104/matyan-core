@@ -139,6 +139,23 @@ services:
       retries: 5
       start_period: 10s
 
+  # Ensure the configured S3 bucket exists in RustFS before app containers start.
+  # RustFS is S3-compatible; we use the MinIO client (`mc`) for idempotent `mb`.
+  rustfs-bucket-init:
+    image: minio/mc:RELEASE.2025-08-13T08-35-41Z
+    profiles: ["s3"]
+    depends_on:
+      rustfs:
+        condition: service_healthy
+    entrypoint:
+      - /bin/sh
+      - -ec
+      - |
+        mc alias set rustfs http://rustfs:9000 rustfsadmin rustfsadmin
+        mc mb -p rustfs/matyan-artifacts
+        mc ls rustfs/matyan-artifacts
+    restart: "no"
+
   fake-gcs-server:
     image: fsouza/fake-gcs-server:latest
     profiles: ["gcs"]
@@ -187,6 +204,9 @@ services:
         condition: service_completed_successfully
       rustfs:
         condition: service_healthy
+        required: false
+      rustfs-bucket-init:
+        condition: service_completed_successfully
         required: false
       fake-gcs-server:
         condition: service_started
@@ -239,6 +259,9 @@ services:
       rustfs:
         condition: service_healthy
         required: false
+      rustfs-bucket-init:
+        condition: service_completed_successfully
+        required: false
       fake-gcs-server:
         condition: service_started
         required: false
@@ -287,6 +310,9 @@ services:
       rustfs:
         condition: service_healthy
         required: false
+      rustfs-bucket-init:
+        condition: service_completed_successfully
+        required: false
       fake-gcs-server:
         condition: service_started
         required: false
@@ -321,6 +347,9 @@ services:
         condition: service_completed_successfully
       rustfs:
         condition: service_healthy
+        required: false
+      rustfs-bucket-init:
+        condition: service_completed_successfully
         required: false
       fake-gcs-server:
         condition: service_started
